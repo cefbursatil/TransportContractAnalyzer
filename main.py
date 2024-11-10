@@ -6,6 +6,7 @@ from components.filters import FilterComponent
 from components.tables import TableComponent
 from components.analytics import AnalyticsComponent
 from components.config import ConfigComponent
+from components.auth import AuthComponent
 
 # Page config
 st.set_page_config(
@@ -46,6 +47,7 @@ class ContractManagementSystem:
     def __init__(self):
         self.scheduler = DataUpdateScheduler()
         self.data_processor = DataProcessor()
+        self.auth = AuthComponent()
         
         # Initialize session state
         if 'last_update' not in st.session_state:
@@ -56,6 +58,16 @@ class ContractManagementSystem:
         
         # Load CSS
         load_css()
+
+        # Check authentication
+        if not self.auth.check_authentication():
+            self.auth.render_login_signup()
+            return
+
+        # Show logout button in sidebar
+        self.auth.logout()
+        
+        st.sidebar.text(f"Usuario: {st.session_state.username}")
         
         # Manual refresh button
         col1, col2 = st.columns([1, 5])
