@@ -56,18 +56,20 @@ class DataProcessor:
         
         for column, value in filters.items():
             if value:
-                if isinstance(value, tuple):  # Date range
+                if isinstance(value, tuple) and len(value) == 2:  # Date range
                     if column in df.columns:
+                        start_date = pd.to_datetime(value[0])
+                        end_date = pd.to_datetime(value[1])
                         filtered_df = filtered_df[
-                            (filtered_df[column] >= value[0]) & 
-                            (filtered_df[column] <= value[1])
+                            (filtered_df[column].dt.date >= start_date.date()) & 
+                            (filtered_df[column].dt.date <= end_date.date())
                         ]
                 elif isinstance(value, list):  # Multiple selection
                     filtered_df = filtered_df[filtered_df[column].isin(value)]
                 else:  # Single value
                     filtered_df = filtered_df[filtered_df[column].str.contains(str(value), 
-                                                                            case=False, 
-                                                                            na=False)]
+                                                                         case=False, 
+                                                                         na=False)]
         
         return filtered_df
 
