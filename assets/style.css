@@ -1,0 +1,30 @@
+/* Main container styling */
+.main {
+    padding: 1rem;
+}
+
+/* Custom table styling */
+.table-container {
+    margin: 1rem 0;
+}
+
+/* Filter section styling */
+.filter-container {
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-radius: 5px;
+    margin-bottom: 1rem;
+}
+
+/* Analytics card styling */
+.analytics-card {
+    padding: 1rem;
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    margin: 0.5rem;
+}
+
+/* Button styling */
+.stButton>button {
+    width: 100%;
+}

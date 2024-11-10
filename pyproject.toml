@@ -1,0 +1,11 @@
+[project]
+name = "repl-nix-transportcontractanalyzer"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.11"
+dependencies = [
+    "apscheduler>=3.10.4",
+    "plotly>=5.24.1",
+    "streamlit>=1.40.0",
+    "trafilatura>=1.12.2",
+]
