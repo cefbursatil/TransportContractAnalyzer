@@ -54,7 +54,7 @@ class DataProcessor:
 
     @staticmethod
     def process_contracts(df, contract_type='active'):
-        if df is None or len(df) == 0:  # Use len() instead of df.empty
+        if df is None or len(df) == 0:
             logger.warning(f"Empty dataframe received for {contract_type} contracts")
             return pd.DataFrame()
             
@@ -68,7 +68,8 @@ class DataProcessor:
                     'valor_total_adjudicacion': 'valor_del_contrato',
                     'precio_base': 'valor_del_contrato',
                     'id_del_proceso': 'id_contrato',
-                    'descripci_n_del_procedimiento': 'descripcion_del_proceso'
+                    'descripci_n_del_procedimiento': 'descripcion_del_proceso',
+                    'nombre_de_la_entidad': 'nombre_entidad'
                 }
             else:
                 column_mapping = {
@@ -88,7 +89,7 @@ class DataProcessor:
             if 'valor_del_contrato' in df.columns:
                 # Convert to numeric, removing non-numeric characters
                 df['valor_del_contrato'] = pd.to_numeric(
-                    df['valor_del_contrato'].astype(str).str.replace(r'[^\d.-]', '', regex=True),
+                    df['valor_del_contrato'].replace(r'[^\d.-]', '', regex=True),
                     errors='coerce'
                 ).fillna(0)
             
@@ -98,6 +99,7 @@ class DataProcessor:
                 if col in df.columns:
                     df[col] = pd.to_datetime(df[col], errors='coerce')
             
+            logger.info(f"Processed {len(df)} {contract_type} contracts")
             return df
             
         except Exception as e:
