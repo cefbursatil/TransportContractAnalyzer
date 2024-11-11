@@ -5,8 +5,46 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 import logging
+import json
 
 logger = logging.getLogger(__name__)
+
+# Colombia department coordinates (approximate centroids)
+COLOMBIA_DEPARTMENTS = {
+    'AMAZONAS': {'lat': -1.0, 'lon': -71.9},
+    'ANTIOQUIA': {'lat': 7.0, 'lon': -75.5},
+    'ARAUCA': {'lat': 6.5, 'lon': -71.0},
+    'ATLANTICO': {'lat': 10.7, 'lon': -74.9},
+    'BOGOTA': {'lat': 4.6, 'lon': -74.1},
+    'BOLIVAR': {'lat': 8.6, 'lon': -74.0},
+    'BOYACA': {'lat': 5.6, 'lon': -73.0},
+    'CALDAS': {'lat': 5.3, 'lon': -75.3},
+    'CAQUETA': {'lat': 0.9, 'lon': -73.8},
+    'CASANARE': {'lat': 5.3, 'lon': -71.3},
+    'CAUCA': {'lat': 2.5, 'lon': -76.6},
+    'CESAR': {'lat': 9.3, 'lon': -73.5},
+    'CHOCO': {'lat': 5.7, 'lon': -76.6},
+    'CORDOBA': {'lat': 8.7, 'lon': -75.6},
+    'CUNDINAMARCA': {'lat': 5.0, 'lon': -74.0},
+    'GUAINIA': {'lat': 2.6, 'lon': -68.5},
+    'GUAVIARE': {'lat': 2.0, 'lon': -72.3},
+    'HUILA': {'lat': 2.5, 'lon': -75.5},
+    'LA GUAJIRA': {'lat': 11.5, 'lon': -72.5},
+    'MAGDALENA': {'lat': 10.4, 'lon': -74.4},
+    'META': {'lat': 3.4, 'lon': -73.0},
+    'NARIÑO': {'lat': 1.2, 'lon': -77.3},
+    'NORTE DE SANTANDER': {'lat': 7.9, 'lon': -72.5},
+    'PUTUMAYO': {'lat': 0.4, 'lon': -76.6},
+    'QUINDIO': {'lat': 4.5, 'lon': -75.7},
+    'RISARALDA': {'lat': 5.3, 'lon': -75.9},
+    'SAN ANDRES Y PROVIDENCIA': {'lat': 12.5, 'lon': -81.7},
+    'SANTANDER': {'lat': 6.6, 'lon': -73.1},
+    'SUCRE': {'lat': 9.0, 'lon': -75.4},
+    'TOLIMA': {'lat': 4.0, 'lon': -75.2},
+    'VALLE DEL CAUCA': {'lat': 3.8, 'lon': -76.5},
+    'VAUPES': {'lat': 0.5, 'lon': -70.5},
+    'VICHADA': {'lat': 4.4, 'lon': -69.3}
+}
 
 class AnalyticsComponent:
     @staticmethod
@@ -45,33 +83,61 @@ class AnalyticsComponent:
             st.error("Error al generar análisis")
 
     @staticmethod
-    def _render_active_metrics(df):
-        """Render metrics specific to active contracts"""
-        if df.empty:
-            st.warning("No hay contratos activos disponibles")
-            return
+    def _create_department_map(df, title):
+        """Create an interactive map visualization for department data"""
+        if 'departamento' not in df.columns:
+            return None
 
-        # Active contracts specific metrics
-        col1, col2, col3, col4 = st.columns(4)
+        # Prepare data
+        dept_data = df.groupby('departamento').agg({
+            'valor_del_contrato': ['sum', 'count']
+        }).reset_index()
+        dept_data.columns = ['departamento', 'valor_total', 'cantidad']
         
-        with col1:
-            total_value = df['valor_del_contrato'].sum()
-            st.metric("Valor Total Activo", f"${total_value:,.0f}")
+        # Normalize department names
+        dept_data['departamento'] = dept_data['departamento'].str.upper()
         
-        with col2:
-            avg_value = df['valor_del_contrato'].mean()
-            st.metric("Valor Promedio", f"${avg_value:,.0f}")
+        # Add coordinates
+        dept_data['lat'] = dept_data['departamento'].map(lambda x: COLOMBIA_DEPARTMENTS.get(x, {}).get('lat', None))
+        dept_data['lon'] = dept_data['departamento'].map(lambda x: COLOMBIA_DEPARTMENTS.get(x, {}).get('lon', None))
         
-        with col3:
-            current_month = pd.Timestamp.now().replace(day=1)
-            monthly_contracts = df[pd.to_datetime(df['fecha_de_firma']).dt.to_period('M') == 
-                                pd.Period(current_month, freq='M')].shape[0]
-            st.metric("Contratos Nuevos (Mes Actual)", monthly_contracts)
-        
-        with col4:
-            if 'duracion' in df.columns:
-                avg_duration = df['duracion'].mean()
-                st.metric("Duración Promedio (días)", f"{avg_duration:.0f}")
+        # Create map
+        fig = go.Figure()
+
+        # Add scatter markers for departments
+        fig.add_trace(go.Scattergeo(
+            lon=dept_data['lon'],
+            lat=dept_data['lat'],
+            text=dept_data.apply(lambda x: f"{x['departamento']}<br>Valor: ${x['valor_total']:,.0f}<br>Cantidad: {x['cantidad']}", axis=1),
+            mode='markers',
+            marker=dict(
+                size=dept_data['cantidad'],
+                sizeref=2.*max(dept_data['cantidad'])/(40.**2),
+                sizemin=4,
+                color=dept_data['valor_total'],
+                colorscale='Viridis',
+                showscale=True,
+                colorbar_title="Valor Total"
+            ),
+            name='Departamentos'
+        ))
+
+        # Update layout
+        fig.update_layout(
+            title=title,
+            geo=dict(
+                scope='south america',
+                projection_scale=4,
+                center=dict(lat=4.5709, lon=-74.2973),
+                showland=True,
+                showcountries=True,
+                showsubunits=True,
+                countrycolor='rgb(204, 204, 204)',
+                subunitcolor='rgb(255, 255, 255)'
+            )
+        )
+
+        return fig
 
     @staticmethod
     def _render_active_visualizations(df):
@@ -79,29 +145,48 @@ class AnalyticsComponent:
         if df.empty:
             return
 
+        # Geographic Distribution
+        if 'departamento' in df.columns:
+            st.subheader("Distribución Geográfica de Contratos Activos")
+            
+            # Create and display the interactive map
+            fig_map = AnalyticsComponent._create_department_map(
+                df, 
+                'Distribución Geográfica de Contratos Activos'
+            )
+            if fig_map:
+                st.plotly_chart(fig_map, use_container_width=True)
+
+            # Additional geographic analytics
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                dept_values = df.groupby('departamento')['valor_del_contrato'].sum().reset_index()
+                fig_bar = px.bar(
+                    dept_values,
+                    x='departamento',
+                    y='valor_del_contrato',
+                    title='Valor Total por Departamento',
+                    labels={'valor_del_contrato': 'Valor Total', 'departamento': 'Departamento'}
+                )
+                fig_bar.update_layout(xaxis_tickangle=-45)
+                st.plotly_chart(fig_bar, use_container_width=True)
+            
+            with col2:
+                dept_counts = df['departamento'].value_counts()
+                fig_pie = px.pie(
+                    values=dept_counts.values,
+                    names=dept_counts.index,
+                    title='Distribución de Contratos por Departamento'
+                )
+                st.plotly_chart(fig_pie, use_container_width=True)
+
         # Contract Value Distribution
         st.subheader("Distribución de Valores de Contratos Activos")
         fig_box = px.box(df, y='valor_del_contrato', points='all')
         st.plotly_chart(fig_box, use_container_width=True)
 
-        # Geographical Distribution
-        if 'departamento' in df.columns:
-            st.subheader("Distribución Geográfica")
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                dept_values = df.groupby('departamento')['valor_del_contrato'].sum().reset_index()
-                fig_geo = px.bar(dept_values, x='departamento', y='valor_del_contrato',
-                               title='Valor Total por Departamento')
-                st.plotly_chart(fig_geo, use_container_width=True)
-            
-            with col2:
-                dept_counts = df['departamento'].value_counts()
-                fig_pie = px.pie(values=dept_counts.values, names=dept_counts.index,
-                               title='Distribución de Contratos por Departamento')
-                st.plotly_chart(fig_pie, use_container_width=True)
-
-        # Recent Activity Timeline
+        # Time-based visualizations
         if 'fecha_de_firma' in df.columns:
             st.subheader("Actividad Reciente")
             df['mes'] = pd.to_datetime(df['fecha_de_firma']).dt.to_period('M')
@@ -132,38 +217,46 @@ class AnalyticsComponent:
             st.plotly_chart(fig, use_container_width=True)
 
     @staticmethod
-    def _render_historical_metrics(df):
-        """Render metrics specific to historical contracts"""
-        if df.empty:
-            st.warning("No hay contratos históricos disponibles")
-            return
-
-        # Historical specific metrics
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            total_historical = df['valor_del_contrato'].sum()
-            st.metric("Valor Total Histórico", f"${total_historical:,.0f}")
-        
-        with col2:
-            completed_count = df[df['estado_contrato'] == 'Terminado'].shape[0] if 'estado_contrato' in df.columns else 0
-            completion_rate = (completed_count / len(df)) * 100 if len(df) > 0 else 0
-            st.metric("Tasa de Finalización", f"{completion_rate:.1f}%")
-        
-        with col3:
-            avg_historical = df['valor_del_contrato'].mean()
-            st.metric("Valor Promedio Histórico", f"${avg_historical:,.0f}")
-        
-        with col4:
-            if 'duracion' in df.columns:
-                avg_duration = df['duracion'].mean()
-                st.metric("Duración Promedio Histórica", f"{avg_duration:.0f} días")
-
-    @staticmethod
     def _render_historical_visualizations(df):
         """Render visualizations specific to historical contracts"""
         if df.empty:
             return
+
+        # Geographic Distribution
+        if 'departamento' in df.columns:
+            st.subheader("Distribución Geográfica de Contratos Históricos")
+            
+            # Create and display the interactive map
+            fig_map = AnalyticsComponent._create_department_map(
+                df, 
+                'Distribución Geográfica de Contratos Históricos'
+            )
+            if fig_map:
+                st.plotly_chart(fig_map, use_container_width=True)
+
+            # Additional geographic analytics
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                dept_values = df.groupby('departamento')['valor_del_contrato'].sum().reset_index()
+                fig_bar = px.bar(
+                    dept_values,
+                    x='departamento',
+                    y='valor_del_contrato',
+                    title='Valor Total Histórico por Departamento',
+                    labels={'valor_del_contrato': 'Valor Total', 'departamento': 'Departamento'}
+                )
+                fig_bar.update_layout(xaxis_tickangle=-45)
+                st.plotly_chart(fig_bar, use_container_width=True)
+            
+            with col2:
+                dept_counts = df['departamento'].value_counts()
+                fig_pie = px.pie(
+                    values=dept_counts.values,
+                    names=dept_counts.index,
+                    title='Distribución Histórica de Contratos por Departamento'
+                )
+                st.plotly_chart(fig_pie, use_container_width=True)
 
         # Historical Trends
         if 'fecha_de_firma' in df.columns:
@@ -202,6 +295,63 @@ class AnalyticsComponent:
                 title='Distribución por Estado de Contrato'
             )
             st.plotly_chart(fig_status, use_container_width=True)
+
+    @staticmethod
+    def _render_active_metrics(df):
+        """Render metrics specific to active contracts"""
+        if df.empty:
+            st.warning("No hay contratos activos disponibles")
+            return
+
+        # Active contracts specific metrics
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            total_value = df['valor_del_contrato'].sum()
+            st.metric("Valor Total Activo", f"${total_value:,.0f}")
+        
+        with col2:
+            avg_value = df['valor_del_contrato'].mean()
+            st.metric("Valor Promedio", f"${avg_value:,.0f}")
+        
+        with col3:
+            current_month = pd.Timestamp.now().replace(day=1)
+            monthly_contracts = df[pd.to_datetime(df['fecha_de_firma']).dt.to_period('M') == 
+                                pd.Period(current_month, freq='M')].shape[0]
+            st.metric("Contratos Nuevos (Mes Actual)", monthly_contracts)
+        
+        with col4:
+            if 'duracion' in df.columns:
+                avg_duration = df['duracion'].mean()
+                st.metric("Duración Promedio (días)", f"{avg_duration:.0f}")
+
+    @staticmethod
+    def _render_historical_metrics(df):
+        """Render metrics specific to historical contracts"""
+        if df.empty:
+            st.warning("No hay contratos históricos disponibles")
+            return
+
+        # Historical specific metrics
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            total_historical = df['valor_del_contrato'].sum()
+            st.metric("Valor Total Histórico", f"${total_historical:,.0f}")
+        
+        with col2:
+            completed_count = df[df['estado_contrato'] == 'Terminado'].shape[0] if 'estado_contrato' in df.columns else 0
+            completion_rate = (completed_count / len(df)) * 100 if len(df) > 0 else 0
+            st.metric("Tasa de Finalización", f"{completion_rate:.1f}%")
+        
+        with col3:
+            avg_historical = df['valor_del_contrato'].mean()
+            st.metric("Valor Promedio Histórico", f"${avg_historical:,.0f}")
+        
+        with col4:
+            if 'duracion' in df.columns:
+                avg_duration = df['duracion'].mean()
+                st.metric("Duración Promedio Histórica", f"{avg_duration:.0f} días")
 
     @staticmethod
     def _render_comparative_analytics(active_df, historical_df):
@@ -246,43 +396,41 @@ class AnalyticsComponent:
                     f"{duration_diff:+.1f}% vs histórico"
                 )
 
-        # Value Distribution Comparison
-        st.subheader("Comparación de Distribución de Valores")
-        fig = go.Figure()
-        fig.add_trace(go.Box(
-            y=active_df['valor_del_contrato'],
-            name='Contratos Activos',
-            boxpoints='outliers'
-        ))
-        fig.add_trace(go.Box(
-            y=historical_df['valor_del_contrato'],
-            name='Contratos Históricos',
-            boxpoints='outliers'
-        ))
-        fig.update_layout(
-            title='Distribución de Valores: Activos vs Históricos',
-            yaxis_title='Valor del Contrato (COP)'
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-        # Geographical Comparison
+        # Geographic Comparison
         if 'departamento' in active_df.columns and 'departamento' in historical_df.columns:
             st.subheader("Comparación Geográfica")
             
-            # Prepare data
-            active_dept = active_df.groupby('departamento')['valor_del_contrato'].sum().reset_index()
-            hist_dept = historical_df.groupby('departamento')['valor_del_contrato'].sum().reset_index()
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                fig_map_active = AnalyticsComponent._create_department_map(
+                    active_df,
+                    'Distribución Geográfica - Contratos Activos'
+                )
+                if fig_map_active:
+                    st.plotly_chart(fig_map_active, use_container_width=True)
+            
+            with col2:
+                fig_map_hist = AnalyticsComponent._create_department_map(
+                    historical_df,
+                    'Distribución Geográfica - Contratos Históricos'
+                )
+                if fig_map_hist:
+                    st.plotly_chart(fig_map_hist, use_container_width=True)
+
+            # Comparative bar chart
+            dept_active = active_df.groupby('departamento')['valor_del_contrato'].sum().reset_index()
+            dept_hist = historical_df.groupby('departamento')['valor_del_contrato'].sum().reset_index()
             
             # Merge data
             dept_comparison = pd.merge(
-                active_dept, 
-                hist_dept, 
-                on='departamento', 
+                dept_active,
+                dept_hist,
+                on='departamento',
                 suffixes=('_activo', '_historico'),
                 how='outer'
             ).fillna(0)
             
-            # Create comparative bar chart
             fig = go.Figure()
             fig.add_trace(go.Bar(
                 x=dept_comparison['departamento'],
@@ -298,38 +446,7 @@ class AnalyticsComponent:
                 title='Comparación de Valores por Departamento',
                 barmode='group',
                 xaxis_title='Departamento',
-                yaxis_title='Valor Total (COP)'
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-        # Time-based Comparison
-        if 'fecha_de_firma' in active_df.columns and 'fecha_de_firma' in historical_df.columns:
-            st.subheader("Comparación Temporal")
-            
-            # Prepare monthly data
-            active_df['mes'] = pd.to_datetime(active_df['fecha_de_firma']).dt.to_period('M')
-            historical_df['mes'] = pd.to_datetime(historical_df['fecha_de_firma']).dt.to_period('M')
-            
-            active_monthly = active_df.groupby('mes')['valor_del_contrato'].agg(['sum', 'count']).reset_index()
-            hist_monthly = historical_df.groupby('mes')['valor_del_contrato'].agg(['sum', 'count']).reset_index()
-            
-            # Create time series comparison
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(
-                x=active_monthly['mes'].astype(str),
-                y=active_monthly['sum'],
-                name='Valor Total (Activos)',
-                line=dict(color='blue')
-            ))
-            fig.add_trace(go.Scatter(
-                x=hist_monthly['mes'].astype(str),
-                y=hist_monthly['sum'],
-                name='Valor Total (Históricos)',
-                line=dict(color='red')
-            ))
-            fig.update_layout(
-                title='Comparación de Valores Totales por Mes',
-                xaxis_title='Mes',
-                yaxis_title='Valor Total (COP)'
+                yaxis_title='Valor Total (COP)',
+                xaxis_tickangle=-45
             )
             st.plotly_chart(fig, use_container_width=True)
