@@ -61,33 +61,6 @@ class DataProcessor:
             return pd.DataFrame(), pd.DataFrame()
 
     @staticmethod
-    def _verify_datatypes(df, contract_type):
-        """Verify and convert data types for DataFrame columns"""
-        try:
-            # Date columns
-            date_columns = [col for col in df.columns if 'fecha' in col.lower()]
-            for col in date_columns:
-                df[col] = pd.to_datetime(df[col], errors='coerce')
-                logger.debug(f"Converted {col} to datetime in {contract_type} contracts")
-
-            # Numeric columns
-            numeric_columns = ['valor_del_contrato', 'duracion']
-            for col in numeric_columns:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors='coerce')
-                    logger.debug(f"Converted {col} to numeric in {contract_type} contracts")
-
-            # Categorical columns
-            categorical_columns = ['departamento', 'tipo_de_contrato', 'estado_del_contrato']
-            for col in categorical_columns:
-                if col in df.columns:
-                    df[col] = df[col].astype('category')
-                    logger.debug(f"Converted {col} to category in {contract_type} contracts")
-
-        except Exception as e:
-            logger.error(f"Error verifying data types for {contract_type} contracts: {str(e)}")
-
-    @staticmethod
     def process_contracts(df, contract_type='active'):
         """Process contracts with enhanced validation and logging"""
         if df is None or df.empty:
@@ -104,7 +77,7 @@ class DataProcessor:
             if contract_type == 'active':
                 column_mapping = {
                     'valor_total_adjudicacion': 'valor_del_contrato',
-                    'fecha_adjudicacion': 'fecha_de_firma',
+                    'fecha_de_publicacion_del': 'fecha_de_firma',  # Updated as requested
                     'departamento_entidad': 'departamento',
                     'entidad': 'nombre_entidad',
                     'id_del_proceso': 'id_contrato',
@@ -150,7 +123,8 @@ class DataProcessor:
             # Handle monetary values safely
             if 'valor_del_contrato' in df.columns:
                 logger.debug(f"Processing monetary values for {contract_type} contracts")
-                df['valor_del_contrato'] = pd.to_numeric(df['valor_del_contrato'].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0)
+                df['valor_del_contrato'] = pd.to_numeric(df['valor_del_contrato'].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce')
+                df['valor_del_contrato'] = df['valor_del_contrato'].fillna(0)
             
             # Handle date columns
             date_columns = [col for col in df.columns if 'fecha' in col.lower()]
