@@ -51,7 +51,7 @@ class DataProcessor:
         try:
             # Create a copy to avoid modifying original
             df = df.copy()
-
+            
             # Clean and standardize column names
             column_mapping = {
                 'valor_total_adjudicacion': 'valor_del_contrato',
@@ -61,19 +61,21 @@ class DataProcessor:
             }
             df = df.rename(columns=column_mapping)
             
-            # Handle monetary values
+            # Handle monetary values safely
             if 'valor_del_contrato' in df.columns:
-                df['valor_del_contrato'] = pd.to_numeric(
-                    df['valor_del_contrato'].astype(str).str.replace(r'[^\d.-]', '', regex=True),
-                    errors='coerce'
-                ).fillna(0)
+                # Convert to string explicitly using astype
+                df['valor_del_contrato'] = df['valor_del_contrato'].astype(str)
+                # Remove non-numeric characters
+                df['valor_del_contrato'] = df['valor_del_contrato'].replace(r'[^\d.-]', '', regex=True)
+                # Convert to numeric
+                df['valor_del_contrato'] = pd.to_numeric(df['valor_del_contrato'], errors='coerce').fillna(0)
             
             # Handle date columns
             date_columns = [col for col in df.columns if 'fecha' in col.lower()]
             for col in date_columns:
                 if col in df.columns:
                     df[col] = pd.to_datetime(df[col], errors='coerce')
-
+            
             # Ensure critical columns exist
             required_columns = ['nombre_entidad', 'departamento', 'tipo_de_contrato', 'valor_del_contrato']
             for col in required_columns:
@@ -88,6 +90,7 @@ class DataProcessor:
                     df[col] = df[col].astype(str).apply(lambda x: x.strip())
             
             return df
+            
         except Exception as e:
             logger.error(f"Error processing contracts: {str(e)}")
             return pd.DataFrame()

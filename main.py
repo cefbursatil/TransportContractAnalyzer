@@ -128,8 +128,10 @@ class ContractManagementSystem:
                 with tab2:
                     if historical_df.empty:
                         logger.info("Historical DataFrame is empty")
+                        st.info("No hay datos históricos disponibles")
                     else:
                         logger.info(f"Historical DataFrame has {len(historical_df)} rows")
+                        logger.info(f"Historical DataFrame columns: {historical_df.columns.tolist()}")
                     TableComponent.render_table(historical_df, "Contratos Históricos")
                     
                 with tab3:
