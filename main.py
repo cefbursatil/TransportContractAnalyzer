@@ -17,112 +17,129 @@ st.set_page_config(
 
 # Load custom CSS
 def load_css():
-    st.markdown("""
-        <style>
-        .main {
-            padding: 1rem;
-        }
-        .table-container {
-            margin: 1rem 0;
-        }
-        .filter-container {
-            padding: 1rem;
-            background-color: #f8f9fa;
-            border-radius: 5px;
-            margin-bottom: 1rem;
-        }
-        .analytics-card {
-            padding: 1rem;
-            border: 1px solid #e0e0e0;
-            border-radius: 5px;
-            margin: 0.5rem;
-        }
-        .stButton>button {
-            width: 100%;
-        }
-        </style>
-    """, unsafe_allow_html=True)
+    try:
+        st.markdown("""
+            <style>
+            .main {
+                padding: 1rem;
+            }
+            .table-container {
+                margin: 1rem 0;
+            }
+            .filter-container {
+                padding: 1rem;
+                background-color: #f8f9fa;
+                border-radius: 5px;
+                margin-bottom: 1rem;
+            }
+            .analytics-card {
+                padding: 1rem;
+                border: 1px solid #e0e0e0;
+                border-radius: 5px;
+                margin: 0.5rem;
+            }
+            .stButton>button {
+                width: 100%;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+    except Exception as e:
+        st.error(f"Error loading CSS: {str(e)}")
 
 class ContractManagementSystem:
     def __init__(self):
-        self.scheduler = DataUpdateScheduler()
-        self.data_processor = DataProcessor()
-        self.auth = AuthComponent()
-        
-        # Initialize session state
-        if 'last_update' not in st.session_state:
-            st.session_state.last_update = pd.Timestamp.now()
+        try:
+            self.scheduler = DataUpdateScheduler()
+            self.data_processor = DataProcessor()
+            self.auth = AuthComponent()
+            
+            # Initialize session state
+            if 'last_update' not in st.session_state:
+                st.session_state.last_update = pd.Timestamp.now()
+        except Exception as e:
+            st.error(f"Error initializing system: {str(e)}")
             
     def run(self):
-        st.title("Sistema de Gestión de Contratos de Transporte")
-        
-        # Load CSS
-        load_css()
-
-        # Check authentication
-        if not self.auth.check_authentication():
-            self.auth.render_login_signup()
-            return
-
-        # Show logout button in sidebar
-        self.auth.logout()
-        
-        st.sidebar.text(f"Usuario: {st.session_state.username}")
-        
-        # Manual refresh button
-        col1, col2 = st.columns([1, 5])
-        with col1:
-            if st.button("🔄 Actualizar Datos"):
-                with st.spinner("Actualizando datos..."):
-                    if self.scheduler.force_update():
-                        st.session_state.last_update = pd.Timestamp.now()
-                        st.success("Datos actualizados exitosamente")
-                    else:
-                        st.error("Error al actualizar los datos")
-                        
-        with col2:
-            st.text(f"Última actualización: {st.session_state.last_update.strftime('%Y-%m-%d %H:%M:%S')}")
-        
         try:
-            # Load data
-            active_df, presentation_df = self.data_processor.load_data()
+            st.title("Sistema de Gestión de Contratos de Transporte")
             
-            # Process data
-            active_df = self.data_processor.process_contracts(active_df, 'active')
-            historical_df = self.data_processor.process_contracts(presentation_df, 'historical')
+            # Load CSS
+            load_css()
+
+            # Check authentication
+            if not self.auth.check_authentication():
+                self.auth.render_login_signup()
+                return
+
+            # Show logout button in sidebar
+            self.auth.logout()
             
-            # Create tabs
-            tab1, tab2, tab3, tab4 = st.tabs([
-                "Contratos Activos",
-                "Contratos Históricos",
-                "Dashboard de Análisis",
-                "Configuración"
-            ])
+            st.sidebar.text(f"Usuario: {st.session_state.username}")
             
-            with tab1:
-                # Render active contracts
-                filters = FilterComponent.render_filters(active_df)
-                filtered_df = self.data_processor.apply_filters(active_df, filters)
-                TableComponent.render_table(filtered_df, "Contratos Activos")
+            # Manual refresh button
+            col1, col2 = st.columns([1, 5])
+            with col1:
+                if st.button("🔄 Actualizar Datos"):
+                    with st.spinner("Actualizando datos..."):
+                        if self.scheduler.force_update():
+                            st.session_state.last_update = pd.Timestamp.now()
+                            st.success("Datos actualizados exitosamente")
+                        else:
+                            st.error("Error al actualizar los datos")
+                            
+            with col2:
+                st.text(f"Última actualización: {st.session_state.last_update.strftime('%Y-%m-%d %H:%M:%S')}")
+            
+            try:
+                # Load data
+                active_df, presentation_df = self.data_processor.load_data()
                 
-            with tab2:
-                # Render historical contracts
-                filters = FilterComponent.render_filters(historical_df)
-                filtered_df = self.data_processor.apply_filters(historical_df, filters)
-                TableComponent.render_table(filtered_df, "Contratos Históricos")
+                # Process data
+                active_df = self.data_processor.process_contracts(active_df, 'active')
+                historical_df = self.data_processor.process_contracts(presentation_df, 'historical')
                 
-            with tab3:
-                # Render analytics with separate sections
-                AnalyticsComponent.render_analytics(active_df, historical_df)
+                # Create tabs
+                tab1, tab2, tab3, tab4 = st.tabs([
+                    "Contratos Activos",
+                    "Contratos Históricos",
+                    "Dashboard de Análisis",
+                    "Configuración"
+                ])
                 
-            with tab4:
-                # Render configuration
-                ConfigComponent.render_config()
+                with tab1:
+                    # Render active contracts
+                    filters = FilterComponent.render_filters(active_df)
+                    filtered_df = self.data_processor.apply_filters(active_df, filters)
+                    TableComponent.render_table(filtered_df, "Contratos Activos")
+                    
+                with tab2:
+                    # Render historical contracts
+                    filters = FilterComponent.render_filters(historical_df)
+                    filtered_df = self.data_processor.apply_filters(historical_df, filters)
+                    TableComponent.render_table(filtered_df, "Contratos Históricos")
+                    
+                with tab3:
+                    # Render analytics with separate sections
+                    AnalyticsComponent.render_analytics(active_df, historical_df)
+                    
+                with tab4:
+                    try:
+                        # Render configuration
+                        ConfigComponent.render_config()
+                    except Exception as e:
+                        st.error(f"Error in configuration tab: {str(e)}")
+                        st.info("Please contact the administrator if this error persists.")
+            except Exception as e:
+                st.error(f"Error loading data: {str(e)}")
+                st.info("Por favor, intente recargar la página. Si el problema persiste, contacte al administrador.")
         except Exception as e:
-            st.error(f"Error loading application: {str(e)}")
+            st.error(f"Error in application: {str(e)}")
             
     def __del__(self):
-        self.scheduler.stop()
+        try:
+            self.scheduler.stop()
+        except:
+            pass
 
 if __name__ == "__main__":
     app = ContractManagementSystem()
