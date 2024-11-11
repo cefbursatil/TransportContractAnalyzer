@@ -7,6 +7,11 @@ from components.tables import TableComponent
 from components.analytics import AnalyticsComponent
 from components.config import ConfigComponent
 from components.auth import AuthComponent
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Page config
 st.set_page_config(
@@ -44,7 +49,14 @@ def load_css():
             </style>
         """, unsafe_allow_html=True)
     except Exception as e:
+        logger.error(f"Error loading CSS: {str(e)}")
         st.error(f"Error loading CSS: {str(e)}")
+
+# Initialize session state
+if 'authentication_status' not in st.session_state:
+    st.session_state['authentication_status'] = None
+if 'username' not in st.session_state:
+    st.session_state['username'] = None
 
 class ContractManagementSystem:
     def __init__(self):
@@ -57,6 +69,7 @@ class ContractManagementSystem:
             if 'last_update' not in st.session_state:
                 st.session_state.last_update = pd.Timestamp.now()
         except Exception as e:
+            logger.error(f"Error initializing system: {str(e)}")
             st.error(f"Error initializing system: {str(e)}")
             
     def run(self):
@@ -66,15 +79,14 @@ class ContractManagementSystem:
             # Load CSS
             load_css()
 
-            # Check authentication
-            if not self.auth.check_authentication():
+            # Authentication check
+            if not st.session_state['authentication_status']:
                 self.auth.render_login_signup()
                 return
 
             # Show logout button in sidebar
+            st.sidebar.text(f"Usuario: {st.session_state['username']}")
             self.auth.logout()
-            
-            st.sidebar.text(f"Usuario: {st.session_state.username}")
             
             # Manual refresh button
             col1, col2 = st.columns([1, 5])
@@ -127,12 +139,15 @@ class ContractManagementSystem:
                         # Render configuration
                         ConfigComponent.render_config()
                     except Exception as e:
+                        logger.error(f"Error in configuration tab: {str(e)}")
                         st.error(f"Error in configuration tab: {str(e)}")
                         st.info("Please contact the administrator if this error persists.")
             except Exception as e:
+                logger.error(f"Error loading data: {str(e)}")
                 st.error(f"Error loading data: {str(e)}")
                 st.info("Por favor, intente recargar la página. Si el problema persiste, contacte al administrador.")
         except Exception as e:
+            logger.error(f"Error in application: {str(e)}")
             st.error(f"Error in application: {str(e)}")
             
     def __del__(self):

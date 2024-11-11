@@ -6,6 +6,9 @@ import os
 from typing import Optional, Tuple
 import psycopg2
 from psycopg2.extras import DictCursor
+import logging
+
+logger = logging.getLogger(__name__)
 
 class AuthComponent:
     def __init__(self):
@@ -31,91 +34,128 @@ class AuthComponent:
         try:
             with self.get_db_connection() as conn:
                 with conn.cursor() as cur:
+                    # Check if username or email already exists
+                    cur.execute(
+                        "SELECT username FROM users WHERE username = %s OR email = %s",
+                        (username, email)
+                    )
+                    if cur.fetchone():
+                        return False, "Username or email already exists"
+
                     hashed_password = self.hash_password(password)
                     cur.execute(
                         "INSERT INTO users (username, email, password_hash) VALUES (%s, %s, %s)",
                         (username, email, hashed_password)
                     )
                     conn.commit()
+                    logger.info(f"New user created: {username}")
                     return True, "User created successfully"
         except psycopg2.Error as e:
-            if e.pgcode == '23505':  # Unique violation
-                return False, "Username or email already exists"
+            logger.error(f"Database error creating user: {str(e)}")
             return False, f"Database error: {str(e)}"
+        except Exception as e:
+            logger.error(f"Error creating user: {str(e)}")
+            return False, f"Error: {str(e)}"
 
     def authenticate_user(self, username: str, password: str) -> Tuple[bool, str, Optional[dict]]:
         try:
             with self.get_db_connection() as conn:
                 with conn.cursor(cursor_factory=DictCursor) as cur:
                     cur.execute(
-                        "SELECT id, username, password_hash FROM users WHERE username = %s AND is_active = true",
+                        """
+                        SELECT id, username, password_hash 
+                        FROM users 
+                        WHERE username = %s AND is_active = true
+                        """,
                         (username,)
                     )
                     user = cur.fetchone()
                     
-                    if user and self.verify_password(password, user['password_hash']):
-                        token = jwt.encode(
-                            {
-                                'user_id': user['id'],
-                                'username': user['username'],
-                                'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1)
-                            },
-                            self.jwt_secret,
-                            algorithm='HS256'
-                        )
-                        return True, "Login successful", {'token': token, 'username': user['username']}
-                    return False, "Invalid username or password", None
+                    if not user:
+                        return False, "Invalid username or password", None
+                        
+                    if not self.verify_password(password, user['password_hash']):
+                        return False, "Invalid username or password", None
+
+                    # Update last login timestamp
+                    cur.execute(
+                        "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = %s",
+                        (user['id'],)
+                    )
+                    conn.commit()
+
+                    token = jwt.encode(
+                        {
+                            'user_id': user['id'],
+                            'username': user['username'],
+                            'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1)
+                        },
+                        self.jwt_secret,
+                        algorithm='HS256'
+                    )
+                    logger.info(f"User logged in: {username}")
+                    return True, "Login successful", {'token': token, 'username': user['username']}
         except psycopg2.Error as e:
+            logger.error(f"Database error during authentication: {str(e)}")
             return False, f"Database error: {str(e)}", None
+        except Exception as e:
+            logger.error(f"Error during authentication: {str(e)}")
+            return False, f"Error: {str(e)}", None
 
     def render_login_signup(self):
-        if 'authentication_status' not in st.session_state:
-            st.session_state.authentication_status = None
-
+        st.header("Autenticación")
         tab1, tab2 = st.tabs(["Login", "Sign Up"])
         
         with tab1:
-            st.subheader("Login")
-            username = st.text_input("Username", key="login_username")
-            password = st.text_input("Password", type="password", key="login_password")
+            st.subheader("Iniciar Sesión")
+            username = st.text_input("Usuario", key="login_username")
+            password = st.text_input("Contraseña", type="password", key="login_password")
             
-            if st.button("Login", key="login_button"):
+            if st.button("Iniciar Sesión", key="login_button"):
+                if not username or not password:
+                    st.error("Por favor ingrese usuario y contraseña")
+                    return
+
                 success, message, user_data = self.authenticate_user(username, password)
                 if success:
-                    st.session_state.authentication_status = True
-                    st.session_state.username = user_data['username']
-                    st.session_state.token = user_data['token']
+                    st.session_state['authentication_status'] = True
+                    st.session_state['username'] = user_data['username']
+                    st.session_state['token'] = user_data['token']
                     st.success(message)
                     st.rerun()
                 else:
                     st.error(message)
         
         with tab2:
-            st.subheader("Sign Up")
-            new_username = st.text_input("Username", key="signup_username")
+            st.subheader("Registrarse")
+            new_username = st.text_input("Usuario", key="signup_username")
             new_email = st.text_input("Email", key="signup_email")
-            new_password = st.text_input("Password", type="password", key="signup_password")
-            confirm_password = st.text_input("Confirm Password", type="password", key="signup_confirm")
+            new_password = st.text_input("Contraseña", type="password", key="signup_password")
+            confirm_password = st.text_input("Confirmar Contraseña", type="password", key="signup_confirm")
             
-            if st.button("Sign Up", key="signup_button"):
-                if new_password != confirm_password:
-                    st.error("Passwords do not match")
-                elif len(new_password) < 6:
-                    st.error("Password must be at least 6 characters long")
-                else:
-                    success, message = self.create_user(new_username, new_email, new_password)
-                    if success:
-                        st.success(message)
-                        st.info("Please login with your new account")
-                    else:
-                        st.error(message)
+            if st.button("Registrarse", key="signup_button"):
+                if not all([new_username, new_email, new_password, confirm_password]):
+                    st.error("Por favor complete todos los campos")
+                    return
 
-    def check_authentication(self) -> bool:
-        return st.session_state.get('authentication_status', False)
+                if new_password != confirm_password:
+                    st.error("Las contraseñas no coinciden")
+                    return
+
+                if len(new_password) < 6:
+                    st.error("La contraseña debe tener al menos 6 caracteres")
+                    return
+
+                success, message = self.create_user(new_username, new_email, new_password)
+                if success:
+                    st.success(message)
+                    st.info("Por favor inicie sesión con su nueva cuenta")
+                else:
+                    st.error(message)
 
     def logout(self):
-        if st.sidebar.button("Logout"):
-            st.session_state.authentication_status = None
-            st.session_state.username = None
-            st.session_state.token = None
+        if st.sidebar.button("Cerrar Sesión"):
+            st.session_state['authentication_status'] = None
+            st.session_state['username'] = None
+            st.session_state['token'] = None
             st.rerun()

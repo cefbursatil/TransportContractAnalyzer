@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 import os
+import logging
 
 class DataProcessor:
     @staticmethod
@@ -27,7 +28,7 @@ class DataProcessor:
             
             return active_df, presentation_df
         except Exception as e:
-            print(f"Error loading data: {str(e)}")
+            logging.error(f"Error loading data: {str(e)}")
             return pd.DataFrame(), pd.DataFrame()
 
     @staticmethod
@@ -37,16 +38,26 @@ class DataProcessor:
             return df
             
         try:
+            # Standardize column names first
+            column_mapping = {
+                'valor_total_adjudicacion': 'valor_del_contrato',
+                'precio_base': 'valor_del_contrato'
+            }
+            df = df.rename(columns=column_mapping)
+            
             # Convert date columns
             date_columns = [col for col in df.columns if 'fecha' in col.lower()]
             for col in date_columns:
                 df[col] = pd.to_datetime(df[col], errors='coerce')
                 
             # Convert monetary columns
+            if 'valor_del_contrato' not in df.columns:
+                df['valor_del_contrato'] = 0  # Add default column if missing
+                
             monetary_cols = [col for col in df.columns if 'valor' in col.lower()]
             for col in monetary_cols:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
-                
+            
             # Clean text columns
             text_columns = df.select_dtypes(include=['object']).columns
             for col in text_columns:
@@ -54,7 +65,7 @@ class DataProcessor:
                 
             return df
         except Exception as e:
-            print(f"Error processing contracts: {str(e)}")
+            logging.error(f"Error processing contracts: {str(e)}")
             return df
 
     @staticmethod
@@ -77,12 +88,12 @@ class DataProcessor:
                         filtered_df = filtered_df[filtered_df[column].isin(value)]
                     else:  # Single value
                         filtered_df = filtered_df[filtered_df[column].str.contains(str(value), 
-                                                                          case=False, 
-                                                                          na=False)]
+                                                                           case=False, 
+                                                                           na=False)]
             
             return filtered_df
         except Exception as e:
-            print(f"Error applying filters: {str(e)}")
+            logging.error(f"Error applying filters: {str(e)}")
             return df
 
     @staticmethod
@@ -99,7 +110,7 @@ class DataProcessor:
             }
             return analytics
         except Exception as e:
-            print(f"Error generating analytics: {str(e)}")
+            logging.error(f"Error generating analytics: {str(e)}")
             return {
                 'total_contracts': 0,
                 'total_value': 0,
