@@ -80,7 +80,7 @@ class ContractManagementSystem:
             load_css()
 
             # Authentication check
-            if not st.session_state['authentication_status']:
+            if not st.session_state.get('authentication_status'):
                 self.auth.render_login_signup()
                 return
 
@@ -106,9 +106,18 @@ class ContractManagementSystem:
                 # Load data
                 active_df, presentation_df = self.data_processor.load_data()
                 
-                # Process data
-                active_df = self.data_processor.process_contracts(active_df, 'active')
-                historical_df = self.data_processor.process_contracts(presentation_df, 'historical')
+                if active_df.empty and presentation_df.empty:
+                    st.warning("No se encontraron datos. Por favor, verifique los archivos CSV.")
+                    return
+                    
+                # Process data with error handling
+                try:
+                    active_df = self.data_processor.process_contracts(active_df, 'active')
+                    historical_df = self.data_processor.process_contracts(presentation_df, 'historical')
+                except Exception as e:
+                    logger.error(f"Error processing data: {str(e)}")
+                    st.error("Error al procesar los datos")
+                    return
                 
                 # Create tabs
                 tab1, tab2, tab3, tab4 = st.tabs([
@@ -131,21 +140,17 @@ class ContractManagementSystem:
                     TableComponent.render_table(filtered_df, "Contratos Históricos")
                     
                 with tab3:
-                    # Render analytics with separate sections
+                    # Render analytics
                     AnalyticsComponent.render_analytics(active_df, historical_df)
                     
                 with tab4:
-                    try:
-                        # Render configuration
-                        ConfigComponent.render_config()
-                    except Exception as e:
-                        logger.error(f"Error in configuration tab: {str(e)}")
-                        st.error(f"Error in configuration tab: {str(e)}")
-                        st.info("Please contact the administrator if this error persists.")
+                    # Render configuration
+                    ConfigComponent.render_config()
+                    
             except Exception as e:
-                logger.error(f"Error loading data: {str(e)}")
-                st.error(f"Error loading data: {str(e)}")
-                st.info("Por favor, intente recargar la página. Si el problema persiste, contacte al administrador.")
+                logger.error(f"Error in main application flow: {str(e)}")
+                st.error("Error en la aplicación. Por favor, contacte al administrador.")
+                
         except Exception as e:
             logger.error(f"Error in application: {str(e)}")
             st.error(f"Error in application: {str(e)}")

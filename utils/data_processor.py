@@ -30,7 +30,7 @@ class DataProcessor:
         except Exception as e:
             logging.error(f"Error loading data: {str(e)}")
             return pd.DataFrame(), pd.DataFrame()
-
+    
     @staticmethod
     def process_contracts(df, contract_type='active'):
         """Process and clean contract data"""
@@ -45,29 +45,21 @@ class DataProcessor:
             }
             df = df.rename(columns=column_mapping)
             
+            # Clean monetary values before conversion
+            if 'valor_del_contrato' in df.columns:
+                df['valor_del_contrato'] = df['valor_del_contrato'].replace(r'[^0-9.-]', '', regex=True)
+                df['valor_del_contrato'] = pd.to_numeric(df['valor_del_contrato'], errors='coerce').fillna(0)
+            
             # Convert date columns
             date_columns = [col for col in df.columns if 'fecha' in col.lower()]
             for col in date_columns:
                 df[col] = pd.to_datetime(df[col], errors='coerce')
                 
-            # Convert monetary columns
-            if 'valor_del_contrato' not in df.columns:
-                df['valor_del_contrato'] = 0  # Add default column if missing
-                
-            monetary_cols = [col for col in df.columns if 'valor' in col.lower()]
-            for col in monetary_cols:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-            
-            # Clean text columns
-            text_columns = df.select_dtypes(include=['object']).columns
-            for col in text_columns:
-                df[col] = df[col].fillna('No especificado')
-                
             return df
         except Exception as e:
             logging.error(f"Error processing contracts: {str(e)}")
             return df
-
+    
     @staticmethod
     def apply_filters(df, filters):
         """Apply filters to the dataframe"""
@@ -88,8 +80,8 @@ class DataProcessor:
                         filtered_df = filtered_df[filtered_df[column].isin(value)]
                     else:  # Single value
                         filtered_df = filtered_df[filtered_df[column].str.contains(str(value), 
-                                                                           case=False, 
-                                                                           na=False)]
+                                                                        case=False, 
+                                                                        na=False)]
             
             return filtered_df
         except Exception as e:
@@ -102,8 +94,8 @@ class DataProcessor:
         try:
             analytics = {
                 'total_contracts': len(df),
-                'total_value': df['valor_del_contrato'].sum() if 'valor_del_contrato' in df.columns else df['valor_total_adjudicacion'].sum() if 'valor_total_adjudicacion' in df.columns else 0,
-                'avg_duration': df['duracion'].mean() if 'duracion' in df.columns else df['dias_adicionados'].mean() if 'dias_adicionados' in df.columns else 0,
+                'total_value': df['valor_del_contrato'].sum(),
+                'avg_duration': df['duracion'].mean() if 'duracion' in df.columns else 0,
                 'contracts_by_department': df['departamento'].value_counts().head(10).to_dict() if 'departamento' in df.columns else {},
                 'contracts_by_type': df['tipo_de_contrato'].value_counts().to_dict() if 'tipo_de_contrato' in df.columns else {},
                 'monthly_contracts': df.groupby(df['fecha_de_firma'].dt.to_period('M')).size().to_dict() if 'fecha_de_firma' in df.columns else {}
