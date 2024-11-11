@@ -7,6 +7,7 @@ from components.tables import TableComponent
 from components.analytics import AnalyticsComponent
 from components.config import ConfigComponent
 from components.auth import AuthComponent
+from components.reports import ReportGenerator
 import logging
 
 # Configure logging
@@ -120,10 +121,11 @@ class ContractManagementSystem:
                     return
                 
                 # Create tabs
-                tab1, tab2, tab3, tab4 = st.tabs([
+                tab1, tab2, tab3, tab4, tab5 = st.tabs([
                     "Contratos Activos",
                     "Contratos Históricos",
                     "Dashboard de Análisis",
+                    "Reportes",
                     "Configuración"
                 ])
                 
@@ -131,6 +133,8 @@ class ContractManagementSystem:
                     # Render active contracts
                     filters = FilterComponent.render_filters(active_df)
                     filtered_df = self.data_processor.apply_filters(active_df, filters)
+                    st.session_state.data = filtered_df  # Store filtered data for reports
+                    st.session_state.filters = filters  # Store filters for reports
                     TableComponent.render_table(filtered_df, "Contratos Activos")
                     
                 with tab2:
@@ -144,6 +148,10 @@ class ContractManagementSystem:
                     AnalyticsComponent.render_analytics(active_df, historical_df)
                     
                 with tab4:
+                    # Render report generator
+                    ReportGenerator.render_report_generator()
+                    
+                with tab5:
                     # Render configuration
                     ConfigComponent.render_config()
                     
