@@ -24,6 +24,21 @@ class AuthComponent:
     def get_db_connection(self):
         return psycopg2.connect(**self.conn_params)
 
+    def check_last_login_column(self):
+        """Check if last_login column exists in users table"""
+        try:
+            with self.get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT column_name 
+                        FROM information_schema.columns 
+                        WHERE table_name = 'users' AND column_name = 'last_login';
+                    """)
+                    return bool(cur.fetchone())
+        except Exception as e:
+            logger.error(f"Error checking last_login column: {str(e)}")
+            return False
+
     def hash_password(self, password: str) -> str:
         return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
@@ -61,6 +76,7 @@ class AuthComponent:
         try:
             with self.get_db_connection() as conn:
                 with conn.cursor(cursor_factory=DictCursor) as cur:
+                    # First check if user exists and password is correct
                     cur.execute(
                         """
                         SELECT id, username, password_hash 
@@ -77,13 +93,19 @@ class AuthComponent:
                     if not self.verify_password(password, user['password_hash']):
                         return False, "Invalid username or password", None
 
-                    # Update last login timestamp
-                    cur.execute(
-                        "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = %s",
-                        (user['id'],)
-                    )
-                    conn.commit()
+                    # Try to update last_login timestamp if column exists
+                    try:
+                        if self.check_last_login_column():
+                            cur.execute(
+                                "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = %s",
+                                (user['id'],)
+                            )
+                            conn.commit()
+                    except Exception as e:
+                        # Log the error but continue with authentication
+                        logger.warning(f"Failed to update last_login: {str(e)}")
 
+                    # Generate JWT token
                     token = jwt.encode(
                         {
                             'user_id': user['id'],
@@ -95,6 +117,7 @@ class AuthComponent:
                     )
                     logger.info(f"User logged in: {username}")
                     return True, "Login successful", {'token': token, 'username': user['username']}
+                    
         except psycopg2.Error as e:
             logger.error(f"Database error during authentication: {str(e)}")
             return False, f"Database error: {str(e)}", None
