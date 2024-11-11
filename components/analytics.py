@@ -4,7 +4,6 @@ import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 from scipy import stats
-from sklearn.linear_model import LinearRegression
 import logging
 
 logger = logging.getLogger(__name__)
@@ -17,16 +16,13 @@ class AnalyticsComponent:
                 st.warning("No hay datos disponibles para análisis")
                 return
                 
-            tab1, tab2, tab3 = st.tabs(["Vista General", "Análisis Detallado", "Predicciones"])
+            tab1, tab2 = st.tabs(["Vista General", "Análisis Detallado"])
             
             with tab1:
                 AnalyticsComponent._render_overview_analysis(active_df, historical_df)
                     
             with tab2:
                 AnalyticsComponent._render_detailed_analysis(active_df, historical_df)
-                
-            with tab3:
-                AnalyticsComponent._render_predictions(active_df, historical_df)
                     
         except Exception as e:
             logger.error(f"Error in analytics: {str(e)}")
@@ -189,77 +185,3 @@ class AnalyticsComponent:
         except Exception as e:
             logger.error(f"Error in detailed analysis: {str(e)}")
             st.error("Error al generar el análisis detallado")
-
-    @staticmethod
-    def _render_predictions(active_df, historical_df):
-        """Render predictions section"""
-        try:
-            st.subheader("Análisis Predictivo")
-            
-            if 'fecha_de_firma' in active_df.columns and 'valor_del_contrato' in active_df.columns:
-                # Prepare data for prediction
-                df = active_df.copy()
-                df['fecha_de_firma'] = pd.to_datetime(df['fecha_de_firma'])
-                df['dias'] = (df['fecha_de_firma'] - df['fecha_de_firma'].min()).dt.days
-                
-                # Simple linear regression
-                X = df['dias'].values.reshape(-1, 1)
-                y = df['valor_del_contrato'].values
-                
-                model = LinearRegression()
-                model.fit(X, y)
-                
-                # Generate future dates
-                future_days = np.array(range(X.max(), X.max() + 90)).reshape(-1, 1)  # 90 days prediction
-                future_predictions = model.predict(future_days)
-                
-                # Create prediction plot
-                fig = go.Figure()
-                
-                # Actual values
-                fig.add_trace(go.Scatter(
-                    x=df['fecha_de_firma'],
-                    y=df['valor_del_contrato'],
-                    name='Valores Reales',
-                    mode='markers'
-                ))
-                
-                # Predicted values
-                future_dates = pd.date_range(
-                    start=df['fecha_de_firma'].max(),
-                    periods=90,
-                    freq='D'
-                )
-                
-                fig.add_trace(go.Scatter(
-                    x=future_dates,
-                    y=future_predictions,
-                    name='Predicción',
-                    line=dict(dash='dash')
-                ))
-                
-                fig.update_layout(
-                    title='Predicción de Valores de Contratos (90 días)',
-                    xaxis_title='Fecha',
-                    yaxis_title='Valor del Contrato (COP)',
-                    hovermode='x unified'
-                )
-                
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Confidence metrics
-                r2_score = model.score(X, y)
-                st.metric(
-                    "Coeficiente de Determinación (R²)",
-                    f"{r2_score:.2%}"
-                )
-                
-                st.info("""
-                Este es un modelo predictivo simple basado en regresión lineal.
-                Las predicciones son estimaciones basadas en tendencias históricas
-                y deben interpretarse con precaución.
-                """)
-                
-        except Exception as e:
-            logger.error(f"Error in predictions: {str(e)}")
-            st.error("Error al generar predicciones")

@@ -18,10 +18,12 @@ class DataProcessor:
             historical_file = None
             
             for file in files:
-                if 'active_transport_contracts_' in file:
+                # SECOP II files are active contracts
+                if 'secop_ii_transport_presentation_phase_' in file:
                     if not active_file or file > active_file:
                         active_file = file
-                elif 'secop_ii_transport_presentation_phase_' in file:
+                # SECOP I files are historical contracts
+                elif 'active_transport_contracts_' in file:
                     if not historical_file or file > historical_file:
                         historical_file = file
             
@@ -32,14 +34,16 @@ class DataProcessor:
             if active_file:
                 try:
                     active_df = pd.read_csv(active_file, encoding='utf-8', low_memory=False)
+                    logger.info(f"Successfully loaded active contracts from {active_file}")
                 except Exception as e:
-                    logger.error(f"Error loading active contracts: {str(e)}")
+                    logger.error(f"Error loading active contracts from {active_file}: {str(e)}")
                     
             if historical_file:
                 try:
                     historical_df = pd.read_csv(historical_file, encoding='utf-8', low_memory=False)
+                    logger.info(f"Successfully loaded historical contracts from {historical_file}")
                 except Exception as e:
-                    logger.error(f"Error loading historical contracts: {str(e)}")
+                    logger.error(f"Error loading historical contracts from {historical_file}: {str(e)}")
             
             # Add debug logging
             logger.info(f"Active contracts loaded: {len(active_df)} rows")
@@ -54,41 +58,67 @@ class DataProcessor:
     @staticmethod
     def process_contracts(df, contract_type='active'):
         if df is None or df.empty:
+            logger.warning(f"Empty dataframe received for {contract_type} contracts")
             return pd.DataFrame()
             
         try:
             # Create a copy to avoid modifying original
             df = df.copy()
             
-            # Clean and standardize column names
-            column_mapping = {
-                'valor_total_adjudicacion': 'valor_del_contrato',
-                'precio_base': 'valor_del_contrato',
-                'id_del_proceso': 'id_contrato',
-                'descripci_n_del_procedimiento': 'descripcion_del_proceso'
-            }
+            # Log initial columns
+            logger.info(f"Initial columns for {contract_type} contracts: {df.columns.tolist()}")
+            
+            # Define column mappings based on contract type
+            if contract_type == 'active':
+                # For SECOP II (active contracts)
+                column_mapping = {
+                    'valor_total_adjudicacion': 'valor_del_contrato',
+                    'precio_base': 'valor_del_contrato',
+                    'id_del_proceso': 'id_contrato',
+                    'descripci_n_del_procedimiento': 'descripcion_del_proceso',
+                    'entidad': 'nombre_entidad',
+                    'departamento_entidad': 'departamento'
+                }
+            else:
+                # For SECOP I (historical contracts)
+                column_mapping = {
+                    'valor_del_contrato': 'valor_del_contrato',
+                    'proceso_de_compra': 'id_contrato',
+                    'descripcion_del_proceso': 'descripcion_del_proceso',
+                    'nombre_de_la_entidad': 'nombre_entidad',
+                    'departamento_entidad': 'departamento'
+                }
             
             # Only rename columns that exist
             existing_columns = {k: v for k, v in column_mapping.items() if k in df.columns}
             if existing_columns:
                 df = df.rename(columns=existing_columns)
+                logger.info(f"Renamed columns for {contract_type} contracts: {existing_columns}")
             
             # Handle monetary values safely
             if 'valor_del_contrato' in df.columns:
-                df['valor_del_contrato'] = pd.to_numeric(
-                    df['valor_del_contrato'].astype(str).str.replace(r'[^\d.-]', '', regex=True),
-                    errors='coerce'
-                ).fillna(0)
+                try:
+                    df['valor_del_contrato'] = pd.to_numeric(
+                        df['valor_del_contrato'].astype(str).str.replace(r'[^\d.-]', '', regex=True),
+                        errors='coerce'
+                    ).fillna(0)
+                    logger.info(f"Processed monetary values for {contract_type} contracts")
+                except Exception as e:
+                    logger.error(f"Error processing monetary values: {str(e)}")
             
             # Handle date columns
             date_columns = [col for col in df.columns if 'fecha' in col.lower()]
             for col in date_columns:
                 if col in df.columns:
-                    df[col] = pd.to_datetime(df[col], errors='coerce')
+                    try:
+                        df[col] = pd.to_datetime(df[col], errors='coerce')
+                        logger.info(f"Processed date column {col} for {contract_type} contracts")
+                    except Exception as e:
+                        logger.error(f"Error processing date column {col}: {str(e)}")
             
             # Add debug logging
             logger.info(f"Processed {contract_type} contracts: {len(df)} rows")
-            logger.info(f"Columns: {df.columns.tolist()}")
+            logger.info(f"Final columns: {df.columns.tolist()}")
             
             return df
             
