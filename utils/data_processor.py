@@ -104,11 +104,12 @@ class DataProcessor:
             if contract_type == 'active':
                 column_mapping = {
                     'valor_total_adjudicacion': 'valor_del_contrato',
-                    'fecha_de_publicacion': 'fecha_de_firma',
+                    'fecha_de_inicio_del_contrato': 'fecha_de_firma',
                     'departamento_entidad': 'departamento',
                     'nombre_de_la_entidad': 'nombre_entidad',
                     'id_del_proceso': 'id_contrato',
-                    'descripcion_del_procedimiento': 'descripcion_del_proceso'
+                    'descripcion_del_procedimiento': 'descripcion_del_proceso',
+                    'duracion_del_proceso': 'duracion'
                 }
             else:
                 column_mapping = {
