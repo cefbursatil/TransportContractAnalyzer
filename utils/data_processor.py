@@ -41,6 +41,9 @@ class DataProcessor:
             return df
             
         try:
+            # Create a copy to avoid modifying original
+            df = df.copy()
+
             # Clean and standardize column names
             column_mapping = {
                 'valor_total_adjudicacion': 'valor_del_contrato',
@@ -50,17 +53,29 @@ class DataProcessor:
             
             # Handle monetary values
             if 'valor_del_contrato' in df.columns:
-                # Convert to string first
-                df['valor_del_contrato'] = df['valor_del_contrato'].astype(str)
-                # Remove non-numeric characters
-                df['valor_del_contrato'] = df['valor_del_contrato'].replace(r'[^\d.-]', '', regex=True)
-                df['valor_del_contrato'] = pd.to_numeric(df['valor_del_contrato'], errors='coerce').fillna(0)
+                df['valor_del_contrato'] = pd.to_numeric(
+                    df['valor_del_contrato'].astype(str).str.replace(r'[^\d.-]', '', regex=True),
+                    errors='coerce'
+                ).fillna(0)
             
             # Handle date columns
             date_columns = [col for col in df.columns if 'fecha' in col.lower()]
             for col in date_columns:
                 if col in df.columns:
                     df[col] = pd.to_datetime(df[col], errors='coerce')
+
+            # Ensure critical columns exist
+            required_columns = ['nombre_entidad', 'departamento', 'tipo_de_contrato', 'valor_del_contrato']
+            for col in required_columns:
+                if col not in df.columns:
+                    df[col] = None
+            
+            # Clean text fields
+            text_columns = ['nombre_entidad', 'departamento', 'tipo_de_contrato', 'descripcion_del_proceso']
+            for col in text_columns:
+                if col in df.columns:
+                    df[col] = df[col].fillna('No especificado')
+                    df[col] = df[col].astype(str).apply(lambda x: x.strip())
             
             return df
         except Exception as e:
@@ -115,14 +130,22 @@ class DataProcessor:
             
             for column, value in filters.items():
                 if value:
-                    if isinstance(value, tuple) and len(value) == 2:  # Date range
+                    if isinstance(value, tuple) and len(value) == 2:  # Date range or numeric range
                         if column in df.columns:
-                            start_date = pd.to_datetime(value[0])
-                            end_date = pd.to_datetime(value[1])
-                            filtered_df = filtered_df[
-                                (filtered_df[column].dt.date >= start_date.date()) & 
-                                (filtered_df[column].dt.date <= end_date.date())
-                            ]
+                            if pd.api.types.is_datetime64_any_dtype(df[column]):
+                                # Date range filter
+                                start_date = pd.to_datetime(value[0])
+                                end_date = pd.to_datetime(value[1])
+                                filtered_df = filtered_df[
+                                    (filtered_df[column].dt.date >= start_date.date()) & 
+                                    (filtered_df[column].dt.date <= end_date.date())
+                                ]
+                            else:
+                                # Numeric range filter
+                                filtered_df = filtered_df[
+                                    (filtered_df[column] >= value[0]) & 
+                                    (filtered_df[column] <= value[1])
+                                ]
                     elif isinstance(value, list):  # Multiple selection
                         filtered_df = filtered_df[filtered_df[column].isin(value)]
                     else:  # Single value
