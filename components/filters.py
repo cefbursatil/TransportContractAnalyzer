@@ -8,6 +8,11 @@ class FilterComponent:
         """Render filter controls with specific filters based on contract type"""
         st.sidebar.header("Filtros")
         
+        # Clear other contract type filters
+        other_type = 'historical' if contract_type == 'active' else 'active'
+        if f'filters_{other_type}' in st.session_state:
+            st.session_state[f'filters_{other_type}'] = {}
+        
         # Initialize session state for filters if not exists
         if f'filters_{contract_type}' not in st.session_state:
             st.session_state[f'filters_{contract_type}'] = {}

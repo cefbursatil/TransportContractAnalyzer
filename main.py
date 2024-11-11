@@ -134,8 +134,13 @@ class ContractManagementSystem:
                 ])
                 
                 with tab1:
+                    # Clear historical filters when switching to active tab
+                    if 'filters_historical' in st.session_state:
+                        st.session_state.filters_historical = {}
+                    
                     with st.sidebar:
                         st.markdown("### Filtros de Contratos Activos")
+                    
                     # Render active contracts with specific filters
                     active_filters = FilterComponent.render_filters(active_df, 'active')
                     filtered_active_df = self.data_processor.apply_filters(active_df, active_filters)
@@ -143,8 +148,13 @@ class ContractManagementSystem:
                     TableComponent.render_table(filtered_active_df, "Contratos Activos")
                     
                 with tab2:
+                    # Clear active filters when switching to historical tab
+                    if 'filters_active' in st.session_state:
+                        st.session_state.filters_active = {}
+                    
                     with st.sidebar:
                         st.markdown("### Filtros de Contratos Históricos")
+                    
                     # Render historical contracts with specific filters
                     historical_filters = FilterComponent.render_filters(historical_df, 'historical')
                     filtered_historical_df = self.data_processor.apply_filters(historical_df, historical_filters)
