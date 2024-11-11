@@ -137,24 +137,25 @@ class ContractManagementSystem:
                     with st.sidebar:
                         st.markdown("### Filtros de Contratos Activos")
                     # Render active contracts with specific filters
-                    filters = FilterComponent.render_filters(active_df, 'active')
-                    st.session_state['filters_active'] = filters
-                    filtered_df = self.data_processor.apply_filters(active_df, filters)
-                    st.session_state.data = filtered_df  # Store filtered data for reports
-                    TableComponent.render_table(filtered_df, "Contratos Activos")
+                    active_filters = FilterComponent.render_filters(active_df, 'active')
+                    filtered_active_df = self.data_processor.apply_filters(active_df, active_filters)
+                    st.session_state.data = filtered_active_df  # Store filtered data for reports
+                    TableComponent.render_table(filtered_active_df, "Contratos Activos")
                     
                 with tab2:
                     with st.sidebar:
                         st.markdown("### Filtros de Contratos Históricos")
                     # Render historical contracts with specific filters
-                    filters = FilterComponent.render_filters(historical_df, 'historical')
-                    st.session_state['filters_historical'] = filters
-                    filtered_df = self.data_processor.apply_filters(historical_df, filters)
-                    TableComponent.render_table(filtered_df, "Contratos Históricos")
+                    historical_filters = FilterComponent.render_filters(historical_df, 'historical')
+                    filtered_historical_df = self.data_processor.apply_filters(historical_df, historical_filters)
+                    TableComponent.render_table(filtered_historical_df, "Contratos Históricos")
                     
                 with tab3:
-                    # Render analytics
-                    AnalyticsComponent.render_analytics(active_df, historical_df)
+                    # Render analytics using filtered dataframes
+                    AnalyticsComponent.render_analytics(
+                        filtered_active_df if 'filters_active' in st.session_state else active_df,
+                        filtered_historical_df if 'filters_historical' in st.session_state else historical_df
+                    )
                     
                 with tab4:
                     # Render report generator

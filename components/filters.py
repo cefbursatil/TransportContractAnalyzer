@@ -8,13 +8,17 @@ class FilterComponent:
         """Render filter controls with specific filters based on contract type"""
         st.sidebar.header("Filtros")
         
+        # Initialize session state for filters if not exists
+        if f'filters_{contract_type}' not in st.session_state:
+            st.session_state[f'filters_{contract_type}'] = {}
+        
         filters = {}
         
         # Date range filter
         if 'fecha_de_firma' in df.columns:
             st.sidebar.subheader("Rango de Fechas")
-            min_date = df['fecha_de_firma'].min()
-            max_date = df['fecha_de_firma'].max()
+            min_date = pd.to_datetime(df['fecha_de_firma'].min())
+            max_date = pd.to_datetime(df['fecha_de_firma'].max())
             
             if pd.notnull(min_date) and pd.notnull(max_date):
                 date_range = st.sidebar.date_input(
@@ -24,7 +28,7 @@ class FilterComponent:
                     max_value=max_date.date(),
                     key=f"date_range_{contract_type}"
                 )
-                if len(date_range) == 2:
+                if isinstance(date_range, tuple) and len(date_range) == 2:
                     filters['fecha_de_firma'] = date_range
 
         # Entity filter
@@ -78,8 +82,9 @@ class FilterComponent:
             if value_range != (min_value, max_value):
                 filters['valor_del_contrato'] = value_range
 
-        # Status filter (specific to contract type)
+        # Contract type specific filters
         if contract_type == 'active':
+            # Active contracts specific filters
             if 'estado_contrato' in df.columns:
                 status_options = sorted(df['estado_contrato'].unique())
                 selected_status = st.sidebar.multiselect(
@@ -90,7 +95,8 @@ class FilterComponent:
                 )
                 if selected_status:
                     filters['estado_contrato'] = selected_status
-        else:  # Historical contracts
+        else:
+            # Historical contracts specific filters
             if 'fase' in df.columns:
                 phase_options = sorted(df['fase'].unique())
                 selected_phase = st.sidebar.multiselect(
@@ -102,9 +108,49 @@ class FilterComponent:
                 if selected_phase:
                     filters['fase'] = selected_phase
 
+            if 'proveedores_invitados' in df.columns:
+                min_providers = int(df['proveedores_invitados'].min())
+                max_providers = int(df['proveedores_invitados'].max())
+                providers_range = st.sidebar.slider(
+                    "Proveedores Invitados",
+                    min_value=min_providers,
+                    max_value=max_providers,
+                    value=(min_providers, max_providers),
+                    key=f"providers_{contract_type}"
+                )
+                if providers_range != (min_providers, max_providers):
+                    filters['proveedores_invitados'] = providers_range
+
+            if 'respuestas_al_procedimiento' in df.columns:
+                min_responses = int(df['respuestas_al_procedimiento'].min())
+                max_responses = int(df['respuestas_al_procedimiento'].max())
+                responses_range = st.sidebar.slider(
+                    "Respuestas al Procedimiento",
+                    min_value=min_responses,
+                    max_value=max_responses,
+                    value=(min_responses, max_responses),
+                    key=f"responses_{contract_type}"
+                )
+                if responses_range != (min_responses, max_responses):
+                    filters['respuestas_al_procedimiento'] = responses_range
+
+            if 'modalidad_de_contratacion' in df.columns:
+                modalities = sorted(df['modalidad_de_contratacion'].unique())
+                selected_modalities = st.sidebar.multiselect(
+                    "Modalidad de Contratación",
+                    options=modalities,
+                    default=[],
+                    key=f"modalities_{contract_type}"
+                )
+                if selected_modalities:
+                    filters['modalidad_de_contratacion'] = selected_modalities
+
         # Add clear filters button
         if st.sidebar.button("Limpiar Filtros", key=f"clear_{contract_type}"):
-            st.session_state[f"filters_{contract_type}"] = {}
+            # Clear the specific contract type filters in session state
+            st.session_state[f'filters_{contract_type}'] = {}
             st.rerun()
 
+        # Store filters in session state
+        st.session_state[f'filters_{contract_type}'] = filters
         return filters
