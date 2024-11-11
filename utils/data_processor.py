@@ -32,7 +32,7 @@ class DataProcessor:
                         historical_file = file
                         logger.debug(f"Updated historical file to: {file}")
 
-            # Load files with proper error handling and type checking
+            # Load files with proper error handling
             active_df = pd.DataFrame()
             historical_df = pd.DataFrame()
             
@@ -104,12 +104,12 @@ class DataProcessor:
             if contract_type == 'active':
                 column_mapping = {
                     'valor_total_adjudicacion': 'valor_del_contrato',
-                    'fecha_de_inicio_del_contrato': 'fecha_de_firma',
+                    'fecha_adjudicacion': 'fecha_de_firma',
                     'departamento_entidad': 'departamento',
-                    'nombre_de_la_entidad': 'nombre_entidad',
+                    'entidad': 'nombre_entidad',
                     'id_del_proceso': 'id_contrato',
-                    'descripcion_del_procedimiento': 'descripcion_del_proceso',
-                    'duracion_del_proceso': 'duracion'
+                    'descripci_n_del_procedimiento': 'descripcion_del_proceso',
+                    'duracion': 'duracion'
                 }
             else:
                 column_mapping = {
@@ -119,6 +119,9 @@ class DataProcessor:
                     'nombre_de_la_entidad': 'nombre_entidad',
                     'departamento_entidad': 'departamento'
                 }
+            
+            # Log available columns for debugging
+            logger.debug(f"Available columns in DataFrame: {df.columns.tolist()}")
             
             # Validate and log column existence before mapping
             available_columns = df.columns.tolist()
@@ -147,9 +150,7 @@ class DataProcessor:
             # Handle monetary values safely
             if 'valor_del_contrato' in df.columns:
                 logger.debug(f"Processing monetary values for {contract_type} contracts")
-                df['valor_del_contrato'] = df['valor_del_contrato'].astype(str)
-                df['valor_del_contrato'] = df['valor_del_contrato'].str.replace(r'[^\d.-]', '', regex=True)
-                df['valor_del_contrato'] = pd.to_numeric(df['valor_del_contrato'], errors='coerce').fillna(0)
+                df['valor_del_contrato'] = pd.to_numeric(df['valor_del_contrato'].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0)
             
             # Handle date columns
             date_columns = [col for col in df.columns if 'fecha' in col.lower()]
