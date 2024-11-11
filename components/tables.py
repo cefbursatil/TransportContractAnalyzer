@@ -38,17 +38,16 @@ class TableComponent:
         for col in date_columns:
             display_df[col] = pd.to_datetime(df[col]).dt.strftime('%Y-%m-%d')
             
-        # Add URL column if available
+        # Add URL column if available with clickable button
         if 'urlproceso' in df.columns:
             display_df['Ver Contrato'] = df['urlproceso'].apply(
-                lambda x: f'[Ver]({x})' if isinstance(x, str) else 'No disponible'
+                lambda x: f'<a href="{x}" target="_blank"><button style="background-color: #4CAF50; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer;">Ver Contrato</button></a>' if isinstance(x, str) else 'No disponible'
             )
             
-        # Display the table
-        st.dataframe(
-            display_df,
-            height=400,
-            use_container_width=True
+        # Display the table with HTML
+        st.markdown(
+            display_df.to_html(escape=False, index=False),
+            unsafe_allow_html=True
         )
         
         # Export button
