@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 class ReportGenerator:
     @staticmethod
-    def generate_pdf_report(df, report_type, filters=None):
+    def generate_pdf_report(df, report_type):
         """Generate a PDF report from the dataframe"""
         try:
             # Create buffer for PDF
@@ -49,12 +49,6 @@ class ReportGenerator:
             )
             story.append(timestamp)
             story.append(Spacer(1, 20))
-            
-            # Add filters if provided
-            if filters:
-                filter_text = "Filtros aplicados:\n" + "\n".join([f"{k}: {v}" for k, v in filters.items()])
-                story.append(Paragraph(filter_text, styles['Normal']))
-                story.append(Spacer(1, 20))
             
             # Prepare data for table
             if not df.empty:
@@ -112,7 +106,7 @@ class ReportGenerator:
             raise
 
     @staticmethod
-    def generate_excel_report(df, report_type, filters=None):
+    def generate_excel_report(df, report_type):
         """Generate an Excel report from the dataframe"""
         try:
             # Create buffer for Excel
@@ -140,15 +134,6 @@ class ReportGenerator:
                 for col_num, value in enumerate(df.columns.values):
                     worksheet.write(0, col_num, value, header_format)
                     worksheet.set_column(col_num, col_num, 15)
-                
-                # Add filters information
-                if filters:
-                    filter_sheet = workbook.add_worksheet('Filtros')
-                    filter_sheet.write(0, 0, 'Filtro', header_format)
-                    filter_sheet.write(0, 1, 'Valor', header_format)
-                    for i, (key, value) in enumerate(filters.items(), 1):
-                        filter_sheet.write(i, 0, key)
-                        filter_sheet.write(i, 1, str(value))
                 
             buffer.seek(0)
             return buffer
@@ -187,22 +172,17 @@ class ReportGenerator:
         # Report content selection
         st.subheader("Contenido del Reporte")
         
-        include_filters = st.checkbox("Incluir información de filtros", value=True)
         include_stats = st.checkbox("Incluir estadísticas básicas", value=True)
         include_graphs = st.checkbox("Incluir gráficos", value=True)
         
         # Generate report button
         if st.button("Generar Reporte"):
             try:
-                # Apply filters if any
-                filters = st.session_state.get('filters', {})
-                
                 # Generate report
                 if file_format == "PDF":
                     buffer = ReportGenerator.generate_pdf_report(
                         df,
-                        report_type,
-                        filters if include_filters else None
+                        report_type
                     )
                     
                     # Provide download button
@@ -215,8 +195,7 @@ class ReportGenerator:
                 else:
                     buffer = ReportGenerator.generate_excel_report(
                         df,
-                        report_type,
-                        filters if include_filters else None
+                        report_type
                     )
                     
                     # Provide download button

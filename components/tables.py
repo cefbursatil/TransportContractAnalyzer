@@ -4,14 +4,14 @@ import pandas as pd
 class TableComponent:
     @staticmethod
     def render_table(df, title):
-        """Render an interactive table with the contract data"""
+        """Render a table with the contract data"""
         st.subheader(title)
         
         if df.empty:
-            st.warning("No se encontraron contratos que cumplan con los criterios seleccionados.")
+            st.warning("No se encontraron contratos.")
             return
 
-        # Select columns to display
+        # Select relevant columns
         display_columns = [
             'nombre_entidad',
             'departamento',
