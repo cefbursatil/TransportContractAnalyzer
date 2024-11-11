@@ -19,10 +19,10 @@ class DataProcessor:
             
             # Update the file identification logic
             for file in files:
-                if 'secop_ii_transport_presentation_phase_' in file:
+                if 'open' in file:
                     if not active_file or file > active_file:
                         active_file = file
-                elif 'active_transport_contracts_' in file:
+                elif 'closed' in file:
                     if not historical_file or file > historical_file:
                         historical_file = file
 
