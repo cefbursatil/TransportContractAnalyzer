@@ -50,8 +50,10 @@ class DataProcessor:
             
             # Handle monetary values
             if 'valor_del_contrato' in df.columns:
-                # Remove any non-numeric characters and convert to float
-                df['valor_del_contrato'] = df['valor_del_contrato'].astype(str).str.replace(r'[^\d.-]', '', regex=True)
+                # Convert to string first
+                df['valor_del_contrato'] = df['valor_del_contrato'].astype(str)
+                # Remove non-numeric characters
+                df['valor_del_contrato'] = df['valor_del_contrato'].replace(r'[^\d.-]', '', regex=True)
                 df['valor_del_contrato'] = pd.to_numeric(df['valor_del_contrato'], errors='coerce').fillna(0)
             
             # Handle date columns
@@ -63,8 +65,8 @@ class DataProcessor:
             return df
         except Exception as e:
             logger.error(f"Error processing contracts: {str(e)}")
-            return pd.DataFrame()  # Return empty DataFrame on error
-
+            return pd.DataFrame()
+    
     @staticmethod
     def detect_new_contracts(current_df, previous_df):
         """Detect new contracts by comparing current and previous data"""
@@ -124,9 +126,11 @@ class DataProcessor:
                     elif isinstance(value, list):  # Multiple selection
                         filtered_df = filtered_df[filtered_df[column].isin(value)]
                     else:  # Single value
-                        filtered_df = filtered_df[filtered_df[column].str.contains(str(value), 
-                                                                        case=False, 
-                                                                        na=False)]
+                        filtered_df = filtered_df[filtered_df[column].astype(str).str.contains(
+                            str(value), 
+                            case=False, 
+                            na=False
+                        )]
             
             return filtered_df
         except Exception as e:

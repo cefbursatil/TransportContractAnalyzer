@@ -92,51 +92,52 @@ class ConfigComponent:
                             st.error("Error al guardar la configuración SECOP")
             
             with tab2:
-                with st.form("notification_config"):
-                    st.subheader("Configuración de Notificaciones")
-                    
-                    recipients_str = "\n".join(config.get("notification_recipients", []))
-                    recipients = st.text_area(
-                        "Destinatarios de Notificaciones (uno por línea)",
-                        value=recipients_str,
-                        help="Ingrese las direcciones de correo electrónico"
-                    )
-                    
-                    if st.form_submit_button("Guardar Configuración de Notificaciones"):
-                        new_config = config.copy()
-                        new_config["notification_recipients"] = [
-                            r.strip() for r in recipients.split("\n") if r.strip()
-                        ]
-                        
-                        if ConfigComponent.save_config(new_config):
-                            # Update scheduler recipients if app exists in session state
-                            if 'app' in st.session_state:
-                                st.session_state.app.scheduler.set_notification_recipients(
-                                    new_config["notification_recipients"]
-                                )
-                            st.success("Configuración de notificaciones guardada exitosamente")
-                            st.rerun()
-                        else:
-                            st.error("Error al guardar la configuración de notificaciones")
-                    
-                    # Test notification button outside the form
-                    if st.button("Probar Notificación"):
-                        from utils.notifications import notify_new_contracts
-                        test_contract = [{
-                            'nombre_entidad': 'Entidad de Prueba',
-                            'tipo_de_contrato': 'Contrato de Prueba',
-                            'valor_del_contrato': 1000000,
-                            'fecha_de_firma': '2024-01-01'
-                        }]
-                        recipients_list = [r.strip() for r in recipients.split("\n") if r.strip()]
-                        if recipients_list:
-                            if notify_new_contracts(test_contract, recipients_list):
-                                st.success("Notificación de prueba enviada exitosamente")
-                            else:
-                                st.error("Error al enviar la notificación de prueba")
-                        else:
-                            st.warning("Por favor, ingrese al menos un destinatario de correo electrónico")
+                st.subheader("Configuración de Notificaciones")
                 
+                # Add notification recipients outside form
+                recipients_str = "\n".join(config.get("notification_recipients", []))
+                recipients = st.text_area(
+                    "Destinatarios de Notificaciones (uno por línea)",
+                    value=recipients_str,
+                    help="Ingrese las direcciones de correo electrónico"
+                )
+                
+                # Save button
+                if st.button("Guardar Destinatarios"):
+                    new_config = config.copy()
+                    new_config["notification_recipients"] = [
+                        r.strip() for r in recipients.split("\n") if r.strip()
+                    ]
+                    
+                    if ConfigComponent.save_config(new_config):
+                        if 'app' in st.session_state:
+                            st.session_state.app.scheduler.set_notification_recipients(
+                                new_config["notification_recipients"]
+                            )
+                        st.success("Configuración de notificaciones guardada exitosamente")
+                        st.rerun()
+                    else:
+                        st.error("Error al guardar la configuración de notificaciones")
+                
+                # Test notification button (outside form)
+                if st.button("Probar Notificación"):
+                    from utils.notifications import notify_new_contracts
+                    test_contract = [{
+                        'nombre_entidad': 'Entidad de Prueba',
+                        'tipo_de_contrato': 'Contrato de Prueba',
+                        'valor_del_contrato': 1000000,
+                        'fecha_de_firma': '2024-01-01'
+                    }]
+                    
+                    recipients_list = [r.strip() for r in recipients.split("\n") if r.strip()]
+                    if recipients_list:
+                        if notify_new_contracts(test_contract, recipients_list):
+                            st.success("Notificación de prueba enviada exitosamente")
+                        else:
+                            st.error("Error al enviar la notificación de prueba")
+                    else:
+                        st.warning("Por favor, ingrese al menos un destinatario de correo electrónico")
+                    
         except Exception as e:
             logger.error(f"Error rendering config: {str(e)}")
             st.error("Error al cargar la configuración. Por favor, contacte al administrador.")
