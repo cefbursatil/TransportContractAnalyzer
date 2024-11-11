@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 class DataProcessor:
     @staticmethod
     def load_data():
-        """Load the most recent CSV files"""
         try:
             files = [f for f in os.listdir() if f.endswith('.csv')]
             
@@ -19,34 +18,43 @@ class DataProcessor:
             historical_file = None
             
             for file in files:
-                if file.startswith('active_transport_contracts_'):
+                if 'active_transport_contracts_' in file:
                     if not active_file or file > active_file:
                         active_file = file
-                elif file.startswith('secop_ii_transport_presentation_phase_'):
+                elif 'secop_ii_transport_presentation_phase_' in file:
                     if not historical_file or file > historical_file:
                         historical_file = file
             
-            # Load the files with explicit encoding
+            # Load the files with explicit encoding and error handling
             active_df = pd.DataFrame()
             historical_df = pd.DataFrame()
             
             if active_file:
-                active_df = pd.read_csv(active_file, encoding='utf-8')
-                
+                try:
+                    active_df = pd.read_csv(active_file, encoding='utf-8', low_memory=False)
+                except Exception as e:
+                    logger.error(f"Error loading active contracts: {str(e)}")
+                    
             if historical_file:
-                historical_df = pd.read_csv(historical_file, encoding='utf-8')
-                
+                try:
+                    historical_df = pd.read_csv(historical_file, encoding='utf-8', low_memory=False)
+                except Exception as e:
+                    logger.error(f"Error loading historical contracts: {str(e)}")
+            
+            # Add debug logging
+            logger.info(f"Active contracts loaded: {len(active_df)} rows")
+            logger.info(f"Historical contracts loaded: {len(historical_df)} rows")
+            
             return active_df, historical_df
             
         except Exception as e:
             logger.error(f"Error loading data: {str(e)}")
             return pd.DataFrame(), pd.DataFrame()
-    
+
     @staticmethod
     def process_contracts(df, contract_type='active'):
-        """Process and clean contract data"""
-        if df.empty:
-            return df
+        if df is None or df.empty:
+            return pd.DataFrame()
             
         try:
             # Create a copy to avoid modifying original
@@ -59,16 +67,18 @@ class DataProcessor:
                 'id_del_proceso': 'id_contrato',
                 'descripci_n_del_procedimiento': 'descripcion_del_proceso'
             }
-            df = df.rename(columns=column_mapping)
+            
+            # Only rename columns that exist
+            existing_columns = {k: v for k, v in column_mapping.items() if k in df.columns}
+            if existing_columns:
+                df = df.rename(columns=existing_columns)
             
             # Handle monetary values safely
             if 'valor_del_contrato' in df.columns:
-                # Convert to string explicitly using astype
-                df['valor_del_contrato'] = df['valor_del_contrato'].astype(str)
-                # Remove non-numeric characters
-                df['valor_del_contrato'] = df['valor_del_contrato'].replace(r'[^\d.-]', '', regex=True)
-                # Convert to numeric
-                df['valor_del_contrato'] = pd.to_numeric(df['valor_del_contrato'], errors='coerce').fillna(0)
+                df['valor_del_contrato'] = pd.to_numeric(
+                    df['valor_del_contrato'].astype(str).str.replace(r'[^\d.-]', '', regex=True),
+                    errors='coerce'
+                ).fillna(0)
             
             # Handle date columns
             date_columns = [col for col in df.columns if 'fecha' in col.lower()]
@@ -76,25 +86,16 @@ class DataProcessor:
                 if col in df.columns:
                     df[col] = pd.to_datetime(df[col], errors='coerce')
             
-            # Ensure critical columns exist
-            required_columns = ['nombre_entidad', 'departamento', 'tipo_de_contrato', 'valor_del_contrato']
-            for col in required_columns:
-                if col not in df.columns:
-                    df[col] = None
-            
-            # Clean text fields
-            text_columns = ['nombre_entidad', 'departamento', 'tipo_de_contrato', 'descripcion_del_proceso']
-            for col in text_columns:
-                if col in df.columns:
-                    df[col] = df[col].fillna('No especificado')
-                    df[col] = df[col].astype(str).apply(lambda x: x.strip())
+            # Add debug logging
+            logger.info(f"Processed {contract_type} contracts: {len(df)} rows")
+            logger.info(f"Columns: {df.columns.tolist()}")
             
             return df
             
         except Exception as e:
-            logger.error(f"Error processing contracts: {str(e)}")
+            logger.error(f"Error processing {contract_type} contracts: {str(e)}")
             return pd.DataFrame()
-    
+
     @staticmethod
     def detect_new_contracts(current_df, previous_df):
         """Detect new contracts by comparing current and previous data"""
