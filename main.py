@@ -98,16 +98,16 @@ class ContractManagementSystem:
             
             try:
                 # Load data
-                active_df, presentation_df = self.data_processor.load_data()
+                active_df, historical_df = self.data_processor.load_data()
                 
-                if active_df.empty and presentation_df.empty:
+                if active_df.empty and historical_df.empty:
                     st.warning("No se encontraron datos. Por favor, verifique los archivos CSV.")
                     return
                     
                 # Process data with error handling
                 try:
                     active_df = self.data_processor.process_contracts(active_df, 'active')
-                    historical_df = self.data_processor.process_contracts(presentation_df, 'historical')
+                    historical_df = self.data_processor.process_contracts(historical_df, 'historical')
                 except Exception as e:
                     logger.error(f"Error processing data: {str(e)}")
                     st.error("Error al procesar los datos")
@@ -126,6 +126,10 @@ class ContractManagementSystem:
                     TableComponent.render_table(active_df, "Contratos Activos")
                     
                 with tab2:
+                    if historical_df.empty:
+                        logger.info("Historical DataFrame is empty")
+                    else:
+                        logger.info(f"Historical DataFrame has {len(historical_df)} rows")
                     TableComponent.render_table(historical_df, "Contratos Históricos")
                     
                 with tab3:

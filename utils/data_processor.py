@@ -14,22 +14,30 @@ class DataProcessor:
         try:
             files = [f for f in os.listdir() if f.endswith('.csv')]
             
-            # Get the most recent files for each type
-            active_contracts = None
-            presentation_phase = None
+            # Get the most recent files
+            active_file = None
+            historical_file = None
             
             for file in files:
-                if 'active_transport_contracts' in file:
-                    if active_contracts is None or file > active_contracts:
-                        active_contracts = file
-                elif 'secop_ii_transport_presentation_phase' in file:
-                    if presentation_phase is None or file > presentation_phase:
-                        presentation_phase = file
+                if file.startswith('active_transport_contracts_'):
+                    if not active_file or file > active_file:
+                        active_file = file
+                elif file.startswith('secop_ii_transport_presentation_phase_'):
+                    if not historical_file or file > historical_file:
+                        historical_file = file
             
-            active_df = pd.read_csv(active_contracts) if active_contracts else pd.DataFrame()
-            presentation_df = pd.read_csv(presentation_phase) if presentation_phase else pd.DataFrame()
+            # Load the files with explicit encoding
+            active_df = pd.DataFrame()
+            historical_df = pd.DataFrame()
             
-            return active_df, presentation_df
+            if active_file:
+                active_df = pd.read_csv(active_file, encoding='utf-8')
+                
+            if historical_file:
+                historical_df = pd.read_csv(historical_file, encoding='utf-8')
+                
+            return active_df, historical_df
+            
         except Exception as e:
             logger.error(f"Error loading data: {str(e)}")
             return pd.DataFrame(), pd.DataFrame()
@@ -47,7 +55,9 @@ class DataProcessor:
             # Clean and standardize column names
             column_mapping = {
                 'valor_total_adjudicacion': 'valor_del_contrato',
-                'precio_base': 'valor_del_contrato'
+                'precio_base': 'valor_del_contrato',
+                'id_del_proceso': 'id_contrato',
+                'descripci_n_del_procedimiento': 'descripcion_del_proceso'
             }
             df = df.rename(columns=column_mapping)
             
