@@ -16,172 +16,219 @@ class AnalyticsComponent:
                 st.warning("No hay datos disponibles para análisis")
                 return
                 
-            tab1, tab2 = st.tabs(["Vista General", "Análisis Detallado"])
+            tab1, tab2 = st.tabs(["Contratos Activos", "Contratos Históricos"])
             
             with tab1:
-                AnalyticsComponent._render_overview_analysis(active_df, historical_df)
+                AnalyticsComponent._render_active_contracts_dashboard(active_df)
                     
             with tab2:
-                AnalyticsComponent._render_detailed_analysis(active_df, historical_df)
+                AnalyticsComponent._render_historical_contracts_dashboard(historical_df)
                     
         except Exception as e:
             logger.error(f"Error in analytics: {str(e)}")
             st.error("Error al generar análisis")
 
     @staticmethod
-    def _render_overview_analysis(active_df, historical_df):
-        """Render overview analysis section"""
+    def _render_active_contracts_dashboard(df):
+        """Render active contracts dashboard"""
         try:
-            st.subheader("Resumen General")
-            
-            # Combine dataframes for total metrics
-            combined_df = pd.concat([active_df, historical_df], ignore_index=True)
+            st.header("Dashboard de Contratos Activos")
             
             # Key metrics in columns
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
-                total_value = combined_df['valor_del_contrato'].sum() if 'valor_del_contrato' in combined_df.columns else 0
+                total_value = df['valor_del_contrato'].sum() if 'valor_del_contrato' in df.columns else 0
                 st.metric(
-                    "Valor Total de Contratos",
+                    "Valor Total de Contratos Activos",
                     f"${total_value:,.0f}"
                 )
                 
             with col2:
-                contract_count = len(combined_df)
+                contract_count = len(df)
                 st.metric(
-                    "Número Total de Contratos",
+                    "Número de Contratos Activos",
                     f"{contract_count:,}"
                 )
                 
             with col3:
-                avg_value = combined_df['valor_del_contrato'].mean() if 'valor_del_contrato' in combined_df.columns else 0
+                avg_value = df['valor_del_contrato'].mean() if 'valor_del_contrato' in df.columns else 0
                 st.metric(
                     "Valor Promedio",
                     f"${avg_value:,.0f}"
                 )
                 
             with col4:
-                active_count = len(active_df)
-                st.metric(
-                    "Contratos Activos",
-                    f"{active_count:,}"
-                )
+                if 'duracion' in df.columns:
+                    avg_duration = df['duracion'].mean()
+                    st.metric(
+                        "Duración Promedio (días)",
+                        f"{avg_duration:.0f}"
+                    )
             
-            # Geographical Distribution
-            if 'departamento' in combined_df.columns:
-                st.subheader("Distribución Geográfica")
-                dept_data = combined_df.groupby('departamento').agg({
-                    'valor_del_contrato': 'sum',
-                    'id_contrato': 'count'
-                }).reset_index()
-                
-                # Create two columns for the charts
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    fig_count = px.bar(
-                        dept_data,
-                        x='departamento',
-                        y='id_contrato',
-                        title='Contratos por Departamento',
-                        labels={'id_contrato': 'Número de Contratos', 'departamento': 'Departamento'}
-                    )
-                    st.plotly_chart(fig_count, use_container_width=True)
-                
-                with col2:
-                    fig_value = px.pie(
-                        dept_data,
-                        values='valor_del_contrato',
-                        names='departamento',
-                        title='Distribución del Valor por Departamento'
-                    )
-                    st.plotly_chart(fig_value, use_container_width=True)
-
-        except Exception as e:
-            logger.error(f"Error in overview analysis: {str(e)}")
-            st.error("Error al generar el análisis general")
-
-    @staticmethod
-    def _render_detailed_analysis(active_df, historical_df):
-        """Render detailed analysis section"""
-        try:
-            st.subheader("Análisis Detallado")
+            # Active Contracts Analysis Section
+            st.subheader("Análisis de Contratos Activos")
             
             # Contract Value Distribution
-            if 'valor_del_contrato' in active_df.columns:
-                st.write("### Distribución de Valores de Contratos")
-                
+            if 'valor_del_contrato' in df.columns:
                 fig_box = px.box(
-                    active_df,
+                    df,
                     y='valor_del_contrato',
-                    title='Distribución de Valores',
+                    title='Distribución de Valores de Contratos Activos',
                     points='all'
                 )
                 st.plotly_chart(fig_box, use_container_width=True)
-                
-                # Statistical summary
-                q1 = active_df['valor_del_contrato'].quantile(0.25)
-                q3 = active_df['valor_del_contrato'].quantile(0.75)
-                iqr = q3 - q1
-                
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("Mediana", f"${active_df['valor_del_contrato'].median():,.0f}")
-                with col2:
-                    st.metric("IQR", f"${iqr:,.0f}")
-                with col3:
-                    st.metric("Mínimo", f"${active_df['valor_del_contrato'].min():,.0f}")
-                with col4:
-                    st.metric("Máximo", f"${active_df['valor_del_contrato'].max():,.0f}")
             
-            # Time Series Analysis
-            if 'fecha_de_firma' in active_df.columns:
-                st.write("### Análisis Temporal")
+            # Geographic Distribution
+            if 'departamento' in df.columns:
+                col1, col2 = st.columns(2)
                 
-                # Monthly aggregation
-                monthly_data = active_df.groupby(
-                    pd.to_datetime(active_df['fecha_de_firma']).dt.to_period('M')
-                ).agg({
-                    'valor_del_contrato': ['sum', 'mean', 'count']
+                with col1:
+                    dept_values = df.groupby('departamento')['valor_del_contrato'].sum().reset_index()
+                    fig_map = px.bar(
+                        dept_values,
+                        x='departamento',
+                        y='valor_del_contrato',
+                        title='Valor Total por Departamento'
+                    )
+                    st.plotly_chart(fig_map, use_container_width=True)
+                
+                with col2:
+                    dept_counts = df['departamento'].value_counts().reset_index()
+                    dept_counts.columns = ['departamento', 'count']
+                    fig_pie = px.pie(
+                        dept_counts,
+                        values='count',
+                        names='departamento',
+                        title='Distribución de Contratos por Departamento'
+                    )
+                    st.plotly_chart(fig_pie, use_container_width=True)
+
+            # Timeline Analysis
+            if 'fecha_de_firma' in df.columns:
+                st.subheader("Análisis Temporal de Contratos Activos")
+                df['month'] = pd.to_datetime(df['fecha_de_firma']).dt.to_period('M')
+                monthly_data = df.groupby('month').agg({
+                    'valor_del_contrato': ['sum', 'count']
                 }).reset_index()
+                monthly_data['month'] = monthly_data['month'].astype(str)
                 
-                # Convert period to datetime for plotting
-                monthly_data['fecha_de_firma'] = monthly_data['fecha_de_firma'].astype(str)
-                
-                # Create multiple plots
                 fig = go.Figure()
-                
-                # Total value line
-                fig.add_trace(go.Scatter(
-                    x=monthly_data['fecha_de_firma'],
+                fig.add_trace(go.Bar(
+                    x=monthly_data['month'],
                     y=monthly_data['valor_del_contrato']['sum'],
                     name='Valor Total',
-                    line=dict(color='blue')
+                    marker_color='blue'
                 ))
-                
-                # Contract count line
                 fig.add_trace(go.Scatter(
-                    x=monthly_data['fecha_de_firma'],
+                    x=monthly_data['month'],
                     y=monthly_data['valor_del_contrato']['count'],
                     name='Número de Contratos',
                     yaxis='y2',
                     line=dict(color='red')
                 ))
-                
                 fig.update_layout(
-                    title='Evolución Temporal',
+                    title='Evolución Mensual de Contratos Activos',
                     yaxis=dict(title='Valor Total (COP)'),
-                    yaxis2=dict(
-                        title='Número de Contratos',
-                        overlaying='y',
-                        side='right'
-                    ),
-                    hovermode='x unified'
+                    yaxis2=dict(title='Número de Contratos', overlaying='y', side='right')
                 )
-                
                 st.plotly_chart(fig, use_container_width=True)
 
         except Exception as e:
-            logger.error(f"Error in detailed analysis: {str(e)}")
-            st.error("Error al generar el análisis detallado")
+            logger.error(f"Error in active contracts dashboard: {str(e)}")
+            st.error("Error al generar el dashboard de contratos activos")
+
+    @staticmethod
+    def _render_historical_contracts_dashboard(df):
+        """Render historical contracts dashboard"""
+        try:
+            st.header("Dashboard de Contratos Históricos")
+            
+            # Key metrics for historical contracts
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                total_historical_value = df['valor_del_contrato'].sum() if 'valor_del_contrato' in df.columns else 0
+                st.metric(
+                    "Valor Total Histórico",
+                    f"${total_historical_value:,.0f}"
+                )
+            
+            with col2:
+                contract_count = len(df)
+                st.metric(
+                    "Total Contratos Históricos",
+                    f"{contract_count:,}"
+                )
+            
+            with col3:
+                avg_value = df['valor_del_contrato'].mean() if 'valor_del_contrato' in df.columns else 0
+                st.metric(
+                    "Valor Promedio Histórico",
+                    f"${avg_value:,.0f}"
+                )
+            
+            with col4:
+                if 'estado_del_contrato' in df.columns:
+                    completed_count = df[df['estado_del_contrato'] == 'Terminado'].shape[0]
+                    completion_rate = (completed_count / len(df)) * 100 if len(df) > 0 else 0
+                    st.metric(
+                        "Tasa de Finalización",
+                        f"{completion_rate:.1f}%"
+                    )
+            
+            # Historical Trends Analysis
+            st.subheader("Análisis de Tendencias Históricas")
+            
+            # Year-over-Year Analysis
+            if 'fecha_de_firma' in df.columns:
+                df['year'] = pd.to_datetime(df['fecha_de_firma']).dt.year
+                yearly_data = df.groupby('year').agg({
+                    'valor_del_contrato': ['sum', 'mean', 'count']
+                }).reset_index()
+                
+                # Yearly trends
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
+                    x=yearly_data['year'],
+                    y=yearly_data['valor_del_contrato']['sum'],
+                    name='Valor Total Anual'
+                ))
+                fig.add_trace(go.Scatter(
+                    x=yearly_data['year'],
+                    y=yearly_data['valor_del_contrato']['mean'],
+                    name='Valor Promedio',
+                    yaxis='y2'
+                ))
+                fig.update_layout(
+                    title='Tendencias Anuales',
+                    yaxis=dict(title='Valor Total (COP)'),
+                    yaxis2=dict(title='Valor Promedio', overlaying='y', side='right')
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            
+            # Contract Type Distribution
+            if 'tipo_de_contrato' in df.columns:
+                st.subheader("Distribución por Tipo de Contrato")
+                contract_types = df['tipo_de_contrato'].value_counts()
+                fig_pie = px.pie(
+                    values=contract_types.values,
+                    names=contract_types.index,
+                    title='Distribución de Tipos de Contrato'
+                )
+                st.plotly_chart(fig_pie, use_container_width=True)
+            
+            # Duration Analysis
+            if 'duracion' in df.columns:
+                st.subheader("Análisis de Duración de Contratos")
+                fig_hist = px.histogram(
+                    df,
+                    x='duracion',
+                    title='Distribución de Duración de Contratos',
+                    nbins=30
+                )
+                st.plotly_chart(fig_hist, use_container_width=True)
+
+        except Exception as e:
+            logger.error(f"Error in historical contracts dashboard: {str(e)}")
+            st.error("Error al generar el dashboard de contratos históricos")
