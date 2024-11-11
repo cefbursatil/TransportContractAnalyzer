@@ -40,9 +40,6 @@ class DataProcessor:
                 try:
                     logger.info(f"Loading active contracts from: {active_file}")
                     active_df = pd.read_csv(active_file, encoding='utf-8', low_memory=False)
-                    
-                    # Verify data types
-                    DataProcessor._verify_datatypes(active_df, 'active')
                     logger.info(f"Successfully loaded {len(active_df)} active contracts")
                 except Exception as e:
                     logger.error(f"Error loading active contracts from {active_file}: {str(e)}")
@@ -52,9 +49,6 @@ class DataProcessor:
                 try:
                     logger.info(f"Loading historical contracts from: {historical_file}")
                     historical_df = pd.read_csv(historical_file, encoding='utf-8', low_memory=False)
-                    
-                    # Verify data types
-                    DataProcessor._verify_datatypes(historical_df, 'historical')
                     logger.info(f"Successfully loaded {len(historical_df)} historical contracts")
                 except Exception as e:
                     logger.error(f"Error loading historical contracts from {historical_file}: {str(e)}")
@@ -96,7 +90,7 @@ class DataProcessor:
     @staticmethod
     def process_contracts(df, contract_type='active'):
         """Process contracts with enhanced validation and logging"""
-        if df is None or len(df) == 0:
+        if df is None or df.empty:
             logger.warning(f"Empty dataframe received for {contract_type} contracts")
             return pd.DataFrame()
             
@@ -106,22 +100,15 @@ class DataProcessor:
             # Create a copy to avoid modifying original
             df = df.copy()
             
-            # Validate required columns
-            required_columns = ['valor_del_contrato', 'fecha_de_firma', 'departamento']
-            missing_columns = [col for col in required_columns if col not in df.columns]
-            if missing_columns:
-                logger.error(f"Missing required columns in {contract_type} contracts: {missing_columns}")
-                return pd.DataFrame()
-            
             # Define column mappings based on contract type
             if contract_type == 'active':
                 column_mapping = {
                     'valor_total_adjudicacion': 'valor_del_contrato',
-                    'precio_base': 'valor_del_contrato',
-                    'id_del_proceso': 'id_contrato',
-                    'descripci_n_del_procedimiento': 'descripcion_del_proceso',
+                    'fecha_de_publicacion': 'fecha_de_firma',
+                    'departamento_entidad': 'departamento',
                     'nombre_de_la_entidad': 'nombre_entidad',
-                    'departamento_entidad': 'departamento'
+                    'id_del_proceso': 'id_contrato',
+                    'descripcion_del_procedimiento': 'descripcion_del_proceso'
                 }
             else:
                 column_mapping = {
@@ -132,19 +119,35 @@ class DataProcessor:
                     'departamento_entidad': 'departamento'
                 }
             
-            # Only rename columns that exist
-            existing_columns = {k: v for k, v in column_mapping.items() if k in df.columns}
-            if existing_columns:
-                df = df.rename(columns=existing_columns)
-                logger.debug(f"Renamed columns in {contract_type} contracts: {existing_columns}")
+            # Validate and log column existence before mapping
+            available_columns = df.columns.tolist()
+            mapping_columns = {k: v for k, v in column_mapping.items() if k in available_columns}
+            
+            if not mapping_columns:
+                logger.error(f"No matching columns found for {contract_type} contracts mapping")
+                logger.debug(f"Available columns: {available_columns}")
+                logger.debug(f"Required columns: {list(column_mapping.keys())}")
+                return pd.DataFrame()
+            
+            # Log the columns that will be mapped
+            logger.debug(f"Mapping columns for {contract_type} contracts: {mapping_columns}")
+            
+            # Apply column mapping
+            df = df.rename(columns=mapping_columns)
+            
+            # Validate required columns after mapping
+            required_columns = ['valor_del_contrato', 'fecha_de_firma', 'departamento']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            
+            if missing_columns:
+                logger.error(f"Missing required columns after mapping in {contract_type} contracts: {missing_columns}")
+                return pd.DataFrame()
             
             # Handle monetary values safely
             if 'valor_del_contrato' in df.columns:
                 logger.debug(f"Processing monetary values for {contract_type} contracts")
-                # First convert to string and handle non-numeric characters
                 df['valor_del_contrato'] = df['valor_del_contrato'].astype(str)
                 df['valor_del_contrato'] = df['valor_del_contrato'].str.replace(r'[^\d.-]', '', regex=True)
-                # Then convert to numeric
                 df['valor_del_contrato'] = pd.to_numeric(df['valor_del_contrato'], errors='coerce').fillna(0)
             
             # Handle date columns
@@ -154,7 +157,11 @@ class DataProcessor:
                     logger.debug(f"Processing date column {col} for {contract_type} contracts")
                     df[col] = pd.to_datetime(df[col], errors='coerce')
             
-            logger.info(f"Successfully processed {len(df)} {contract_type} contracts")
+            if df.empty:
+                logger.warning(f"DataFrame is empty after processing {contract_type} contracts")
+            else:
+                logger.info(f"Successfully processed {len(df)} {contract_type} contracts")
+            
             return df
             
         except Exception as e:

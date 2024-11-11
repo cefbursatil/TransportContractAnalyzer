@@ -218,6 +218,7 @@ if __name__ == "__main__":
     if not df_secop_ii_closed.empty:
         print("\nVerification of category codes in the SECOP II dataset:")
         print("\nUnique category codes:")
-        print(df_secop_ii['codigo_principal_de_categoria'].unique())
+        print(df_secop_ii_closed['codigo_principal_de_categoria'].unique())
         print("\nDistribution of category codes:")
-        print(df_secop_ii['codigo_principal_de_categoria'].value_counts())
+        print(
+            df_secop_ii_closed['codigo_principal_de_categoria'].value_counts())
