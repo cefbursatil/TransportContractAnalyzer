@@ -41,26 +41,29 @@ class DataProcessor:
             return df
             
         try:
-            # Standardize column names first
+            # Clean and standardize column names
             column_mapping = {
                 'valor_total_adjudicacion': 'valor_del_contrato',
                 'precio_base': 'valor_del_contrato'
             }
             df = df.rename(columns=column_mapping)
             
-            # Clean monetary values
+            # Handle monetary values
             if 'valor_del_contrato' in df.columns:
+                # Remove any non-numeric characters and convert to float
+                df['valor_del_contrato'] = df['valor_del_contrato'].astype(str).str.replace(r'[^\d.-]', '', regex=True)
                 df['valor_del_contrato'] = pd.to_numeric(df['valor_del_contrato'], errors='coerce').fillna(0)
             
-            # Convert date columns
+            # Handle date columns
             date_columns = [col for col in df.columns if 'fecha' in col.lower()]
             for col in date_columns:
-                df[col] = pd.to_datetime(df[col], errors='coerce')
-                
+                if col in df.columns:
+                    df[col] = pd.to_datetime(df[col], errors='coerce')
+            
             return df
         except Exception as e:
             logger.error(f"Error processing contracts: {str(e)}")
-            return df
+            return pd.DataFrame()  # Return empty DataFrame on error
 
     @staticmethod
     def detect_new_contracts(current_df, previous_df):
@@ -122,8 +125,8 @@ class DataProcessor:
                         filtered_df = filtered_df[filtered_df[column].isin(value)]
                     else:  # Single value
                         filtered_df = filtered_df[filtered_df[column].str.contains(str(value), 
-                                                                       case=False, 
-                                                                       na=False)]
+                                                                        case=False, 
+                                                                        na=False)]
             
             return filtered_df
         except Exception as e:
