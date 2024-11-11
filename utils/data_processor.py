@@ -69,7 +69,8 @@ class DataProcessor:
                     'precio_base': 'valor_del_contrato',
                     'id_del_proceso': 'id_contrato',
                     'descripci_n_del_procedimiento': 'descripcion_del_proceso',
-                    'nombre_de_la_entidad': 'nombre_entidad'
+                    'nombre_de_la_entidad': 'nombre_entidad',
+                    'departamento_entidad': 'departamento'
                 }
             else:
                 column_mapping = {
@@ -87,11 +88,11 @@ class DataProcessor:
             
             # Handle monetary values safely
             if 'valor_del_contrato' in df.columns:
-                # Convert to numeric, removing non-numeric characters
-                df['valor_del_contrato'] = pd.to_numeric(
-                    df['valor_del_contrato'].replace(r'[^\d.-]', '', regex=True),
-                    errors='coerce'
-                ).fillna(0)
+                # First convert to string and handle non-numeric characters
+                df['valor_del_contrato'] = df['valor_del_contrato'].astype(str)
+                df['valor_del_contrato'] = df['valor_del_contrato'].str.replace(r'[^\d.-]', '', regex=True)
+                # Then convert to numeric
+                df['valor_del_contrato'] = pd.to_numeric(df['valor_del_contrato'], errors='coerce').fillna(0)
             
             # Handle date columns
             date_columns = [col for col in df.columns if 'fecha' in col.lower()]
