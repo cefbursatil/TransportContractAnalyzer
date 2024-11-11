@@ -10,57 +10,108 @@ logger = logging.getLogger(__name__)
 class DataProcessor:
     @staticmethod
     def load_data():
+        """Load contract data from CSV files with enhanced error handling and logging"""
         try:
+            logger.debug("Starting data loading process")
             files = [f for f in os.listdir() if f.endswith('.csv')]
+            logger.info(f"Found {len(files)} CSV files: {files}")
             
             # Get the most recent files
             active_file = None
             historical_file = None
             
-            # Update the file identification logic
+            # Update the file identification logic with logging
             for file in files:
+                logger.debug(f"Processing file: {file}")
                 if 'open' in file:
                     if not active_file or file > active_file:
                         active_file = file
+                        logger.debug(f"Updated active file to: {file}")
                 elif 'closed' in file:
                     if not historical_file or file > historical_file:
                         historical_file = file
+                        logger.debug(f"Updated historical file to: {file}")
 
-            # Load files with proper error handling
+            # Load files with proper error handling and type checking
             active_df = pd.DataFrame()
             historical_df = pd.DataFrame()
             
             if active_file:
                 try:
+                    logger.info(f"Loading active contracts from: {active_file}")
                     active_df = pd.read_csv(active_file, encoding='utf-8', low_memory=False)
-                    logger.info(f"Loaded {len(active_df)} active contracts")
+                    
+                    # Verify data types
+                    DataProcessor._verify_datatypes(active_df, 'active')
+                    logger.info(f"Successfully loaded {len(active_df)} active contracts")
                 except Exception as e:
-                    logger.error(f"Error loading active contracts: {str(e)}")
+                    logger.error(f"Error loading active contracts from {active_file}: {str(e)}")
                     active_df = pd.DataFrame()
 
             if historical_file:
                 try:
+                    logger.info(f"Loading historical contracts from: {historical_file}")
                     historical_df = pd.read_csv(historical_file, encoding='utf-8', low_memory=False)
-                    logger.info(f"Loaded {len(historical_df)} historical contracts")
+                    
+                    # Verify data types
+                    DataProcessor._verify_datatypes(historical_df, 'historical')
+                    logger.info(f"Successfully loaded {len(historical_df)} historical contracts")
                 except Exception as e:
-                    logger.error(f"Error loading historical contracts: {str(e)}")
+                    logger.error(f"Error loading historical contracts from {historical_file}: {str(e)}")
                     historical_df = pd.DataFrame()
             
             return active_df, historical_df
             
         except Exception as e:
-            logger.error(f"Error loading data: {str(e)}")
+            logger.error(f"Error in data loading process: {str(e)}")
             return pd.DataFrame(), pd.DataFrame()
 
     @staticmethod
+    def _verify_datatypes(df, contract_type):
+        """Verify and convert data types for DataFrame columns"""
+        try:
+            # Date columns
+            date_columns = [col for col in df.columns if 'fecha' in col.lower()]
+            for col in date_columns:
+                df[col] = pd.to_datetime(df[col], errors='coerce')
+                logger.debug(f"Converted {col} to datetime in {contract_type} contracts")
+
+            # Numeric columns
+            numeric_columns = ['valor_del_contrato', 'duracion']
+            for col in numeric_columns:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+                    logger.debug(f"Converted {col} to numeric in {contract_type} contracts")
+
+            # Categorical columns
+            categorical_columns = ['departamento', 'tipo_de_contrato', 'estado_del_contrato']
+            for col in categorical_columns:
+                if col in df.columns:
+                    df[col] = df[col].astype('category')
+                    logger.debug(f"Converted {col} to category in {contract_type} contracts")
+
+        except Exception as e:
+            logger.error(f"Error verifying data types for {contract_type} contracts: {str(e)}")
+
+    @staticmethod
     def process_contracts(df, contract_type='active'):
+        """Process contracts with enhanced validation and logging"""
         if df is None or len(df) == 0:
             logger.warning(f"Empty dataframe received for {contract_type} contracts")
             return pd.DataFrame()
             
         try:
+            logger.info(f"Starting contract processing for {contract_type} contracts")
+            
             # Create a copy to avoid modifying original
             df = df.copy()
+            
+            # Validate required columns
+            required_columns = ['valor_del_contrato', 'fecha_de_firma', 'departamento']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            if missing_columns:
+                logger.error(f"Missing required columns in {contract_type} contracts: {missing_columns}")
+                return pd.DataFrame()
             
             # Define column mappings based on contract type
             if contract_type == 'active':
@@ -85,9 +136,11 @@ class DataProcessor:
             existing_columns = {k: v for k, v in column_mapping.items() if k in df.columns}
             if existing_columns:
                 df = df.rename(columns=existing_columns)
+                logger.debug(f"Renamed columns in {contract_type} contracts: {existing_columns}")
             
             # Handle monetary values safely
             if 'valor_del_contrato' in df.columns:
+                logger.debug(f"Processing monetary values for {contract_type} contracts")
                 # First convert to string and handle non-numeric characters
                 df['valor_del_contrato'] = df['valor_del_contrato'].astype(str)
                 df['valor_del_contrato'] = df['valor_del_contrato'].str.replace(r'[^\d.-]', '', regex=True)
@@ -98,9 +151,10 @@ class DataProcessor:
             date_columns = [col for col in df.columns if 'fecha' in col.lower()]
             for col in date_columns:
                 if col in df.columns:
+                    logger.debug(f"Processing date column {col} for {contract_type} contracts")
                     df[col] = pd.to_datetime(df[col], errors='coerce')
             
-            logger.info(f"Processed {len(df)} {contract_type} contracts")
+            logger.info(f"Successfully processed {len(df)} {contract_type} contracts")
             return df
             
         except Exception as e:
