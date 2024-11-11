@@ -3,6 +3,9 @@ import numpy as np
 from datetime import datetime
 import os
 import logging
+from .notifications import notify_new_contracts
+
+logger = logging.getLogger(__name__)
 
 class DataProcessor:
     @staticmethod
@@ -28,7 +31,7 @@ class DataProcessor:
             
             return active_df, presentation_df
         except Exception as e:
-            logging.error(f"Error loading data: {str(e)}")
+            logger.error(f"Error loading data: {str(e)}")
             return pd.DataFrame(), pd.DataFrame()
     
     @staticmethod
@@ -45,9 +48,8 @@ class DataProcessor:
             }
             df = df.rename(columns=column_mapping)
             
-            # Clean monetary values before conversion
+            # Clean monetary values
             if 'valor_del_contrato' in df.columns:
-                df['valor_del_contrato'] = df['valor_del_contrato'].replace(r'[^0-9.-]', '', regex=True)
                 df['valor_del_contrato'] = pd.to_numeric(df['valor_del_contrato'], errors='coerce').fillna(0)
             
             # Convert date columns
@@ -57,8 +59,48 @@ class DataProcessor:
                 
             return df
         except Exception as e:
-            logging.error(f"Error processing contracts: {str(e)}")
+            logger.error(f"Error processing contracts: {str(e)}")
             return df
+
+    @staticmethod
+    def detect_new_contracts(current_df, previous_df):
+        """Detect new contracts by comparing current and previous data"""
+        if previous_df.empty:
+            return current_df
+        
+        try:
+            # Use contract ID for comparison
+            current_ids = set(current_df['id_contrato'])
+            previous_ids = set(previous_df['id_contrato'])
+            
+            # Find new contract IDs
+            new_contract_ids = current_ids - previous_ids
+            
+            # Get new contracts data
+            new_contracts = current_df[current_df['id_contrato'].isin(new_contract_ids)]
+            
+            return new_contracts
+        except Exception as e:
+            logger.error(f"Error detecting new contracts: {str(e)}")
+            return pd.DataFrame()
+    
+    @staticmethod
+    def notify_if_new_contracts(current_df, previous_df, recipients):
+        """Check for new contracts and send notifications if found"""
+        try:
+            new_contracts = DataProcessor.detect_new_contracts(current_df, previous_df)
+            
+            if not new_contracts.empty:
+                # Convert DataFrame to list of dictionaries for notification
+                contracts_data = new_contracts.to_dict('records')
+                
+                # Send notification
+                if notify_new_contracts(contracts_data, recipients):
+                    logger.info(f"Notification sent for {len(contracts_data)} new contracts")
+                else:
+                    logger.error("Failed to send notification for new contracts")
+        except Exception as e:
+            logger.error(f"Error in notification process: {str(e)}")
     
     @staticmethod
     def apply_filters(df, filters):
@@ -80,12 +122,12 @@ class DataProcessor:
                         filtered_df = filtered_df[filtered_df[column].isin(value)]
                     else:  # Single value
                         filtered_df = filtered_df[filtered_df[column].str.contains(str(value), 
-                                                                        case=False, 
-                                                                        na=False)]
+                                                                       case=False, 
+                                                                       na=False)]
             
             return filtered_df
         except Exception as e:
-            logging.error(f"Error applying filters: {str(e)}")
+            logger.error(f"Error applying filters: {str(e)}")
             return df
 
     @staticmethod
@@ -94,15 +136,15 @@ class DataProcessor:
         try:
             analytics = {
                 'total_contracts': len(df),
-                'total_value': df['valor_del_contrato'].sum(),
+                'total_value': df['valor_del_contrato'].sum() if 'valor_del_contrato' in df.columns else 0,
                 'avg_duration': df['duracion'].mean() if 'duracion' in df.columns else 0,
                 'contracts_by_department': df['departamento'].value_counts().head(10).to_dict() if 'departamento' in df.columns else {},
                 'contracts_by_type': df['tipo_de_contrato'].value_counts().to_dict() if 'tipo_de_contrato' in df.columns else {},
-                'monthly_contracts': df.groupby(df['fecha_de_firma'].dt.to_period('M')).size().to_dict() if 'fecha_de_firma' in df.columns else {}
+                'monthly_contracts': df.groupby(pd.to_datetime(df['fecha_de_firma']).dt.to_period('M')).size().to_dict() if 'fecha_de_firma' in df.columns else {}
             }
             return analytics
         except Exception as e:
-            logging.error(f"Error generating analytics: {str(e)}")
+            logger.error(f"Error generating analytics: {str(e)}")
             return {
                 'total_contracts': 0,
                 'total_value': 0,
