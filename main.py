@@ -58,6 +58,10 @@ if 'authentication_status' not in st.session_state:
     st.session_state['authentication_status'] = None
 if 'username' not in st.session_state:
     st.session_state['username'] = None
+if 'filters_active' not in st.session_state:
+    st.session_state['filters_active'] = {}
+if 'filters_historical' not in st.session_state:
+    st.session_state['filters_historical'] = {}
 
 class ContractManagementSystem:
     def __init__(self):
@@ -130,16 +134,21 @@ class ContractManagementSystem:
                 ])
                 
                 with tab1:
-                    # Render active contracts
-                    filters = FilterComponent.render_filters(active_df)
+                    with st.sidebar:
+                        st.markdown("### Filtros de Contratos Activos")
+                    # Render active contracts with specific filters
+                    filters = FilterComponent.render_filters(active_df, 'active')
+                    st.session_state['filters_active'] = filters
                     filtered_df = self.data_processor.apply_filters(active_df, filters)
                     st.session_state.data = filtered_df  # Store filtered data for reports
-                    st.session_state.filters = filters  # Store filters for reports
                     TableComponent.render_table(filtered_df, "Contratos Activos")
                     
                 with tab2:
-                    # Render historical contracts
-                    filters = FilterComponent.render_filters(historical_df)
+                    with st.sidebar:
+                        st.markdown("### Filtros de Contratos Históricos")
+                    # Render historical contracts with specific filters
+                    filters = FilterComponent.render_filters(historical_df, 'historical')
+                    st.session_state['filters_historical'] = filters
                     filtered_df = self.data_processor.apply_filters(historical_df, filters)
                     TableComponent.render_table(filtered_df, "Contratos Históricos")
                     
