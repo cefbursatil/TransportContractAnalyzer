@@ -8,6 +8,7 @@ from components.config import ConfigComponent
 from components.auth import AuthComponent
 from components.reports import ReportGenerator
 import logging
+from styles import apply_custom_styles
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -20,38 +21,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# Load custom CSS
-def load_css():
-    try:
-        st.markdown("""
-            <style>
-            .main {
-                padding: 1rem;
-            }
-            .table-container {
-                margin: 1rem 0;
-            }
-            .analytics-card {
-                padding: 1rem;
-                border: 1px solid #e0e0e0;
-                border-radius: 5px;
-                margin: 0.5rem;
-            }
-            .stButton>button {
-                width: 100%;
-            }
-            </style>
-        """, unsafe_allow_html=True)
-    except Exception as e:
-        logger.error(f"Error loading CSS: {str(e)}")
-        st.error(f"Error loading CSS: {str(e)}")
-
-# Initialize session state
-if 'authentication_status' not in st.session_state:
-    st.session_state['authentication_status'] = None
-if 'username' not in st.session_state:
-    st.session_state['username'] = None
-
 class ContractManagementSystem:
     def __init__(self):
         try:
@@ -62,16 +31,18 @@ class ContractManagementSystem:
             # Initialize session state
             if 'last_update' not in st.session_state:
                 st.session_state.last_update = pd.Timestamp.now()
+            if 'show_loading' not in st.session_state:
+                st.session_state.show_loading = False
         except Exception as e:
             logger.error(f"Error initializing system: {str(e)}")
             st.error(f"Error initializing system: {str(e)}")
             
     def run(self):
         try:
-            st.title("Sistema de Gestión de Contratos de Transporte")
+            # Apply custom styles
+            apply_custom_styles()
             
-            # Load CSS
-            load_css()
+            st.title("Sistema de Gestión de Contratos de Transporte")
 
             # Authentication check
             if not st.session_state.get('authentication_status'):
@@ -79,39 +50,61 @@ class ContractManagementSystem:
                 return
 
             # Show logout button in sidebar
-            st.sidebar.text(f"Usuario: {st.session_state['username']}")
-            self.auth.logout()
-            
-            # Manual refresh button
-            col1, col2 = st.columns([1, 5])
-            with col1:
-                if st.button("🔄 Actualizar Datos"):
+            with st.sidebar:
+                st.text(f"Usuario: {st.session_state['username']}")
+                self.auth.logout()
+                
+                # Add system status indicators
+                st.subheader("Estado del Sistema")
+                st.info(f"Última actualización: {st.session_state.last_update.strftime('%Y-%m-%d %H:%M:%S')}")
+                
+                # Manual refresh button
+                if st.button("🔄 Actualizar Datos", key="refresh_button"):
+                    st.session_state.show_loading = True
                     with st.spinner("Actualizando datos..."):
                         if self.scheduler.force_update():
                             st.session_state.last_update = pd.Timestamp.now()
                             st.success("Datos actualizados exitosamente")
                         else:
                             st.error("Error al actualizar los datos")
-                            
-            with col2:
-                st.text(f"Última actualización: {st.session_state.last_update.strftime('%Y-%m-%d %H:%M:%S')}")
+                    st.session_state.show_loading = False
             
             try:
-                # Load data
-                active_df, historical_df = self.data_processor.load_data()
+                # Show loading indicator
+                if st.session_state.show_loading:
+                    with st.spinner("Cargando datos..."):
+                        active_df, historical_df = self.data_processor.load_data()
+                else:
+                    active_df, historical_df = self.data_processor.load_data()
                 
                 if active_df.empty and historical_df.empty:
                     st.warning("No se encontraron datos. Por favor, verifique los archivos CSV.")
                     return
                     
-                # Process data with error handling
-                try:
-                    active_df = self.data_processor.process_contracts(active_df, 'active')
-                    historical_df = self.data_processor.process_contracts(historical_df, 'historical')
-                except Exception as e:
-                    logger.error(f"Error processing data: {str(e)}")
-                    st.error("Error al procesar los datos")
-                    return
+                # Calculate and display key metrics
+                col1, col2, col3 = st.columns(3)
+                active_stats = DataProcessor.get_contract_statistics(active_df)
+                
+                with col1:
+                    st.metric(
+                        "Contratos Activos",
+                        f"{active_stats['total_contracts']:,}",
+                        help="Número total de contratos activos"
+                    )
+                
+                with col2:
+                    st.metric(
+                        "Valor Total",
+                        f"${active_stats['total_value']:,.0f}",
+                        help="Valor total de contratos activos"
+                    )
+                
+                with col3:
+                    st.metric(
+                        "Duración Promedio",
+                        f"{active_stats['avg_duration']:.0f} días",
+                        help="Duración promedio de contratos"
+                    )
                 
                 # Create tabs
                 tab1, tab2, tab3, tab4, tab5 = st.tabs([
@@ -126,12 +119,6 @@ class ContractManagementSystem:
                     TableComponent.render_table(active_df, "Contratos Activos")
                     
                 with tab2:
-                    if historical_df.empty:
-                        logger.info("Historical DataFrame is empty")
-                        st.info("No hay datos históricos disponibles")
-                    else:
-                        logger.info(f"Historical DataFrame has {len(historical_df)} rows")
-                        logger.info(f"Historical DataFrame columns: {historical_df.columns.tolist()}")
                     TableComponent.render_table(historical_df, "Contratos Históricos")
                     
                 with tab3:
