@@ -5,12 +5,13 @@ import pandas as pd
 import numpy as np
 from utils.format_helpers import format_currency, format_percentage, format_large_number
 import logging
+from datetime import datetime, date
 
 logger = logging.getLogger(__name__)
 
 class AnalyticsComponent:
     @staticmethod
-    def render_analytics(active_df, historical_df):
+    def render_analytics(active_df: pd.DataFrame, historical_df: pd.DataFrame):
         """Render analytics dashboard with active and historical contract analysis"""
         try:
             if not isinstance(active_df, pd.DataFrame) or not isinstance(historical_df, pd.DataFrame):
@@ -47,15 +48,19 @@ class AnalyticsComponent:
                             value=(min_date.date(), max_date.date()),
                             key="active_date_filter"
                         )
-                        if len(date_range) == 2:
-                            filtered_active_df = filtered_active_df[
-                                (pd.to_datetime(filtered_active_df['fecha_de_publicacion']).dt.date >= date_range[0]) &
-                                (pd.to_datetime(filtered_active_df['fecha_de_publicacion']).dt.date <= date_range[1])
-                            ]
+                        if isinstance(date_range, tuple) and len(date_range) == 2:
+                            start_date, end_date = date_range
+                            mask = (
+                                pd.to_datetime(filtered_active_df['fecha_de_publicacion']).dt.date.between(
+                                    start_date, end_date
+                                )
+                            )
+                            filtered_active_df = filtered_active_df[mask]
 
                 with col2:
                     if 'tipo_de_contrato' in filtered_active_df.columns:
-                        contract_types = ['Todos'] + sorted(filtered_active_df['tipo_de_contrato'].unique().tolist())
+                        unique_types = filtered_active_df['tipo_de_contrato'].dropna().unique()
+                        contract_types = ['Todos'] + sorted(unique_types.tolist())
                         selected_type = st.selectbox(
                             'Tipo de Contrato',
                             contract_types,
@@ -85,7 +90,8 @@ class AnalyticsComponent:
 
                 with col4:
                     if 'nombre_entidad' in filtered_active_df.columns:
-                        entities = ['Todos'] + sorted(filtered_active_df['nombre_entidad'].unique().tolist())
+                        unique_entities = filtered_active_df['nombre_entidad'].dropna().unique()
+                        entities = ['Todos'] + sorted(unique_entities.tolist())
                         selected_entity = st.selectbox(
                             'Entidad',
                             entities,
@@ -101,27 +107,32 @@ class AnalyticsComponent:
 
                 with col1:
                     # Top 10 entities by contract value
-                    top_entities = filtered_active_df.groupby('nombre_entidad')['valor_del_contrato'].sum().nlargest(10)
-                    fig = px.bar(
-                        x=top_entities.index,
-                        y=top_entities.values,
-                        title='Top 10 Entidades por Valor de Contrato',
-                        labels={'x': 'Entidad', 'y': 'Valor Total (COP)'}
-                    )
-                    fig.update_layout(
-                        xaxis_tickangle=-45,
-                        height=400,
-                        yaxis_tickformat=',.0f'
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
+                    if not filtered_active_df.empty:
+                        entity_values = filtered_active_df.groupby('nombre_entidad')['valor_del_contrato'].sum()
+                        top_entities = entity_values.nlargest(10)
+                        
+                        fig = px.bar(
+                            x=top_entities.index.tolist(),
+                            y=top_entities.values,
+                            title='Top 10 Entidades por Valor de Contrato',
+                            labels={'x': 'Entidad', 'y': 'Valor Total (COP)'}
+                        )
+                        fig.update_layout(
+                            xaxis_tickangle=-45,
+                            height=400,
+                            yaxis_tickformat=',.0f'
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
 
                 with col2:
                     # Regions with highest contract value
-                    if 'departamento' in filtered_active_df.columns:
-                        region_values = filtered_active_df.groupby('departamento')['valor_del_contrato'].sum().sort_values(ascending=True)
+                    if 'departamento' in filtered_active_df.columns and not filtered_active_df.empty:
+                        dept_values = filtered_active_df.groupby('departamento')['valor_del_contrato'].sum()
+                        region_values = dept_values.sort_values(ascending=True)
+                        
                         fig = px.bar(
                             x=region_values.values,
-                            y=region_values.index,
+                            y=region_values.index.tolist(),
                             orientation='h',
                             title='Valor Total de Contratos por Región',
                             labels={'x': 'Valor Total (COP)', 'y': 'Región'}
@@ -150,15 +161,19 @@ class AnalyticsComponent:
                             value=(min_date.date(), max_date.date()),
                             key="hist_date_filter"
                         )
-                        if len(date_range) == 2:
-                            filtered_hist_df = filtered_hist_df[
-                                (pd.to_datetime(filtered_hist_df['fecha_de_firma']).dt.date >= date_range[0]) &
-                                (pd.to_datetime(filtered_hist_df['fecha_de_firma']).dt.date <= date_range[1])
-                            ]
+                        if isinstance(date_range, tuple) and len(date_range) == 2:
+                            start_date, end_date = date_range
+                            mask = (
+                                pd.to_datetime(filtered_hist_df['fecha_de_firma']).dt.date.between(
+                                    start_date, end_date
+                                )
+                            )
+                            filtered_hist_df = filtered_hist_df[mask]
 
                 with col2:
                     if 'tipo_de_contrato' in filtered_hist_df.columns:
-                        contract_types = ['Todos'] + sorted(filtered_hist_df['tipo_de_contrato'].unique().tolist())
+                        unique_types = filtered_hist_df['tipo_de_contrato'].dropna().unique()
+                        contract_types = ['Todos'] + sorted(unique_types.tolist())
                         selected_type = st.selectbox(
                             'Tipo de Contrato',
                             contract_types,
@@ -188,7 +203,8 @@ class AnalyticsComponent:
 
                 with col4:
                     if 'nombre_entidad' in filtered_hist_df.columns:
-                        entities = ['Todos'] + sorted(filtered_hist_df['nombre_entidad'].unique().tolist())
+                        unique_entities = filtered_hist_df['nombre_entidad'].dropna().unique()
+                        entities = ['Todos'] + sorted(unique_entities.tolist())
                         selected_entity = st.selectbox(
                             'Entidad',
                             entities,
@@ -201,7 +217,8 @@ class AnalyticsComponent:
 
                 with col5:
                     if 'proveedor_adjudicado' in filtered_hist_df.columns:
-                        providers = ['Todos'] + sorted(filtered_hist_df['proveedor_adjudicado'].unique().tolist())
+                        unique_providers = filtered_hist_df['proveedor_adjudicado'].dropna().unique()
+                        providers = ['Todos'] + sorted(unique_providers.tolist())
                         selected_provider = st.selectbox(
                             'Proveedor',
                             providers,
@@ -217,27 +234,32 @@ class AnalyticsComponent:
 
                 with col1:
                     # Top 10 entities by contract value
-                    top_entities = filtered_hist_df.groupby('nombre_entidad')['valor_del_contrato'].sum().nlargest(10)
-                    fig = px.bar(
-                        x=top_entities.index,
-                        y=top_entities.values,
-                        title='Top 10 Entidades por Valor de Contrato',
-                        labels={'x': 'Entidad', 'y': 'Valor Total (COP)'}
-                    )
-                    fig.update_layout(
-                        xaxis_tickangle=-45,
-                        height=400,
-                        yaxis_tickformat=',.0f'
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
+                    if not filtered_hist_df.empty:
+                        entity_values = filtered_hist_df.groupby('nombre_entidad')['valor_del_contrato'].sum()
+                        top_entities = entity_values.nlargest(10)
+                        
+                        fig = px.bar(
+                            x=top_entities.index.tolist(),
+                            y=top_entities.values,
+                            title='Top 10 Entidades por Valor de Contrato',
+                            labels={'x': 'Entidad', 'y': 'Valor Total (COP)'}
+                        )
+                        fig.update_layout(
+                            xaxis_tickangle=-45,
+                            height=400,
+                            yaxis_tickformat=',.0f'
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
 
                 with col2:
                     # Regions with highest contract value
-                    if 'departamento' in filtered_hist_df.columns:
-                        region_values = filtered_hist_df.groupby('departamento')['valor_del_contrato'].sum().sort_values(ascending=True)
+                    if 'departamento' in filtered_hist_df.columns and not filtered_hist_df.empty:
+                        dept_values = filtered_hist_df.groupby('departamento')['valor_del_contrato'].sum()
+                        region_values = dept_values.sort_values(ascending=True)
+                        
                         fig = px.bar(
                             x=region_values.values,
-                            y=region_values.index,
+                            y=region_values.index.tolist(),
                             orientation='h',
                             title='Valor Total de Contratos por Región',
                             labels={'x': 'Valor Total (COP)', 'y': 'Región'}
@@ -252,10 +274,12 @@ class AnalyticsComponent:
 
                 with col3:
                     # Top providers by contract value
-                    if 'proveedor_adjudicado' in filtered_hist_df.columns:
-                        top_providers = filtered_hist_df.groupby('proveedor_adjudicado')['valor_del_contrato'].sum().nlargest(10)
+                    if 'proveedor_adjudicado' in filtered_hist_df.columns and not filtered_hist_df.empty:
+                        provider_values = filtered_hist_df.groupby('proveedor_adjudicado')['valor_del_contrato'].sum()
+                        top_providers = provider_values.nlargest(10)
+                        
                         fig = px.bar(
-                            x=top_providers.index,
+                            x=top_providers.index.tolist(),
                             y=top_providers.values,
                             title='Top 10 Proveedores por Valor de Contrato',
                             labels={'x': 'Proveedor', 'y': 'Valor Total (COP)'}
@@ -269,7 +293,7 @@ class AnalyticsComponent:
 
                 with col4:
                     # Regional distribution analysis
-                    if 'departamento' in filtered_hist_df.columns:
+                    if 'departamento' in filtered_hist_df.columns and not filtered_hist_df.empty:
                         region_dist = filtered_hist_df.groupby('departamento').agg({
                             'valor_del_contrato': ['sum', 'count']
                         }).reset_index()
@@ -302,33 +326,35 @@ class AnalyticsComponent:
                     hist_values = historical_df.groupby('nombre_entidad')['valor_del_contrato'].sum()
                     
                     # Get common entities
-                    common_entities = set(active_values.index) & set(hist_values.index)
+                    common_entities = sorted(list(set(active_values.index) & set(hist_values.index)))
                     
                     if common_entities:
-                        comparison_df = pd.DataFrame({
-                            'Activos': active_values[common_entities],
-                            'Históricos': hist_values[common_entities]
-                        })
+                        comparison_data = []
+                        for entity in common_entities:
+                            comparison_data.append({
+                                'Entidad': entity,
+                                'Tipo': 'Activos',
+                                'Valor': active_values[entity]
+                            })
+                            comparison_data.append({
+                                'Entidad': entity,
+                                'Tipo': 'Históricos',
+                                'Valor': hist_values[entity]
+                            })
                         
-                        fig = go.Figure()
-                        fig.add_trace(go.Bar(
-                            name='Contratos Activos',
-                            x=list(common_entities),
-                            y=comparison_df['Activos'],
-                            marker_color='blue'
-                        ))
-                        fig.add_trace(go.Bar(
-                            name='Contratos Históricos',
-                            x=list(common_entities),
-                            y=comparison_df['Históricos'],
-                            marker_color='red'
-                        ))
+                        comparison_df = pd.DataFrame(comparison_data)
+                        
+                        fig = px.bar(
+                            comparison_df,
+                            x='Entidad',
+                            y='Valor',
+                            color='Tipo',
+                            title='Comparación de Valores por Entidad',
+                            barmode='group',
+                            labels={'Valor': 'Valor Total (COP)'}
+                        )
                         
                         fig.update_layout(
-                            title='Comparación de Valores por Entidad',
-                            xaxis_title='Entidad',
-                            yaxis_title='Valor Total (COP)',
-                            barmode='group',
                             xaxis_tickangle=-45,
                             height=500,
                             yaxis_tickformat=',.0f'
