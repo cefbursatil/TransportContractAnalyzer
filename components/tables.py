@@ -21,7 +21,7 @@ class TableComponent:
             if sort_key not in st.session_state:
                 st.session_state[sort_key] = {
                     'column': 'fecha_de_recepcion_de' if title == "Contratos Activos" else None,
-                    'direction': True  # True for ascending
+                    'direction': False if title == "Contratos Activos" else True  # False for descending
                 }
 
             # Add filters
