@@ -6,6 +6,8 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from components.config import ConfigComponent
 import logging
+import glob
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -142,12 +144,38 @@ def process_data(data: List[Dict[str, Any]],
 
 
 def save_to_csv(df: pd.DataFrame, prefix: str):
-    """Save DataFrame to CSV with timestamp."""
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    filename = f'{prefix}_{timestamp}.csv'
-    df.to_csv(filename, index=False)
-    print(f"\nData saved to '{filename}'")
-
+    """
+    Save DataFrame to CSV with timestamp and cleanup old files.
+    Only keeps the most recent file for each prefix.
+    """
+    try:
+        # Create new filename with timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        new_filename = f'{prefix}_{timestamp}.csv'
+        
+        # Find existing files with same prefix
+        existing_files = glob.glob(f'{prefix}_*.csv')
+        
+        # Sort files by timestamp (newest first)
+        existing_files.sort(reverse=True)
+        
+        # Remove all but the most recent file
+        if existing_files:
+            for old_file in existing_files[1:]:  # Skip the most recent file
+                try:
+                    os.remove(old_file)
+                    logger.info(f"Removed old file: {old_file}")
+                except Exception as e:
+                    logger.error(f"Error removing old file {old_file}: {str(e)}")
+        
+        # Save new file
+        df.to_csv(new_filename, index=False)
+        logger.info(f"Data saved to '{new_filename}'")
+        print(f"\nData saved to '{new_filename}'")
+        
+    except Exception as e:
+        logger.error(f"Error in save_to_csv: {str(e)}")
+        print(f"\nError saving data: {str(e)}")
 
 def fetch_and_process_all_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Main function to fetch and process data from both SECOP II Open and II Closed."""
