@@ -178,14 +178,19 @@ class TableComponent:
             else:
                 display_columns = [
                     'nombre_entidad', 'departamento', 'tipo_de_contrato',
-                    'precio_base', 'fecha_de_recepcion_de', 'descripci_on_del_procedimiento',
-                    'estado_contrato'
+                    'precio_base', 'fecha_de_recepcion_de', 'descripci_on_del_procedimiento'
                 ]
             
             # Filter only existing columns
             display_columns = [col for col in display_columns if col in df.columns]
             display_df = df[display_columns].copy()
-            
+
+            # Apply sorting if selected
+            if st.session_state[sort_key]['column']:
+                col = st.session_state[sort_key]['column']
+                ascending = st.session_state[sort_key]['direction']
+                display_df = display_df.sort_values(by=col, ascending=ascending)
+
             # Create sorting buttons for each column
             st.markdown("### Ordenar por:")
             sort_cols = st.columns(len(display_columns))
@@ -204,12 +209,6 @@ class TableComponent:
                             # New column, set to ascending
                             current_sort['column'] = col
                             current_sort['direction'] = True
-            
-            # Apply sorting if selected
-            if st.session_state[sort_key]['column']:
-                col = st.session_state[sort_key]['column']
-                ascending = st.session_state[sort_key]['direction']
-                display_df = display_df.sort_values(by=col, ascending=ascending)
 
             # Rename columns for display
             display_df.columns = [column_mapping[col] for col in display_columns]
@@ -231,17 +230,7 @@ class TableComponent:
             # Truncate long descriptions
             if 'Descripción' in display_df.columns:
                 display_df['Descripción'] = display_df['Descripción'].apply(
-                    lambda x: x[:100] + '...' if isinstance(x, str) and len(x) > 100 else x
-                )
-
-            # Add contract URL if available
-            if 'urlproceso' in df.columns:
-                display_df['Acciones'] = df['urlproceso'].apply(
-                    lambda x: f'<a href="{x}" target="_blank" style="text-decoration:none;">'
-                            f'<button style="background-color: #4CAF50; color: white; '
-                            f'padding: 5px 10px; border: none; border-radius: 4px; '
-                            f'cursor: pointer;">Ver Contrato</button></a>'
-                    if isinstance(x, str) else 'No disponible'
+                    lambda x: x[:200] + '...' if isinstance(x, str) and len(x) > 200 else x
                 )
 
             # Display table statistics
@@ -286,14 +275,7 @@ class TableComponent:
             """, unsafe_allow_html=True)
 
             # Display the table with HTML
-            st.markdown(
-                display_df.to_html(
-                    escape=False,
-                    index=False,
-                    classes=['dataframe']
-                ),
-                unsafe_allow_html=True
-            )
+            st.dataframe(display_df, use_container_width=True)
 
             # Export functionality with multiple formats
             st.subheader("Exportar Datos")
