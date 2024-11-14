@@ -78,7 +78,9 @@ class TableComponent:
             display_columns = [col for col in display_columns if col in filtered_df.columns]
             display_df = filtered_df[display_columns].copy()
 
-            # Format data for display
+            # Format data for display while keeping original values for sorting
+            sort_df = display_df.copy()
+            
             if 'valor_del_contrato' in display_df.columns:
                 display_df['valor_del_contrato'] = display_df['valor_del_contrato'].apply(format_currency)
 
@@ -117,10 +119,11 @@ class TableComponent:
                         width="medium",
                         sortable=True
                     ),
-                    "Valor (COP)": st.column_config.TextColumn(
+                    "Valor (COP)": st.column_config.NumberColumn(
                         "Valor (COP)",
                         width="medium",
                         help="Valor del contrato en pesos colombianos",
+                        format="$%d",
                         sortable=True
                     ),
                     "Fecha de Firma": st.column_config.DateColumn(
@@ -165,8 +168,7 @@ class TableComponent:
             with col2:
                 if st.button("Exportar a Excel", key=f"{title.lower()}_excel_button"):
                     buffer = io.BytesIO()
-                    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-                        filtered_df.to_excel(writer, index=False)
+                    filtered_df.to_excel(buffer, index=False, engine='openpyxl')
                     buffer.seek(0)
                     
                     st.download_button(
