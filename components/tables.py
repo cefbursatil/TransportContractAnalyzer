@@ -105,7 +105,7 @@ class TableComponent:
                         ]
             else:
                 # Default filters for active contracts tab
-                col1, col2, col3 = st.columns(3)
+                col1, col2, col3, col4 = st.columns(4)
                 
                 # Department filter
                 with col1:
@@ -148,6 +148,20 @@ class TableComponent:
                             (df['precio_base'] >= selected_range[0]) &
                             (df['precio_base'] <= selected_range[1])
                         ]
+                # Add the new filter after the existing ones
+                with col4:
+                    if 'modalidad_de_contratacion' in filtered_active_df.columns:
+                        unique_modes = filtered_active_df['modalidad_de_contratacion'].dropna().unique()
+                        contract_modes = ['Todos'] + sorted(unique_modes.tolist())
+                        selected_mode = st.selectbox(
+                            'Modo Contratación',
+                            contract_modes,
+                            key="active_mode_filter"
+                        )
+                        if selected_mode != 'Todos':
+                            filtered_active_df = filtered_active_df[
+                                filtered_active_df['modalidad_de_contratacion'] == selected_mode
+                            ]
 
             # Select relevant columns with better names
             column_mapping = {
@@ -164,7 +178,7 @@ class TableComponent:
                 'duracion': 'Duración (días)',
                 'proveedor_adjudicado': 'Proveedor',
                 'documento_proveedor': 'Documento Proveedor',
-                'dias_adicionados': 'Días Adicionados'
+                'dias_adicionados': 'Días Adicionados',
             }
             
             # Select columns based on tab type
@@ -178,7 +192,7 @@ class TableComponent:
             else:
                 display_columns = [
                     'nombre_entidad', 'departamento', 'tipo_de_contrato',
-                    'precio_base', 'fecha_de_recepcion_de', 'descripci_on_del_procedimiento'
+                    'precio_base', 'fecha_de_recepcion_de'
                 ]
             
             # Filter only existing columns
