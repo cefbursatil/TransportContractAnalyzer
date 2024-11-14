@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 class TableComponent:
     @staticmethod
     def render_table(df, title):
-        """Render an enhanced table with advanced filtering and improved display"""
+        """Render an enhanced table with advanced filtering and sorting"""
         try:
             st.subheader(title)
             
@@ -16,9 +16,13 @@ class TableComponent:
                 st.warning("No se encontraron contratos.")
                 return
 
-            # Sort by fecha_de_firma if it's the historical contracts tab
-            if title == "Contratos Históricos" and 'fecha_de_firma' in df.columns:
-                df = df.sort_values('fecha_de_firma', ascending=False)
+            # Add sort state to session state if not exists
+            sort_key = f"{title.lower()}_sort"
+            if sort_key not in st.session_state:
+                st.session_state[sort_key] = {
+                    'column': None,
+                    'direction': True  # True for ascending
+                }
 
             # Add filters
             st.subheader("Filtros")
@@ -178,6 +182,33 @@ class TableComponent:
             # Filter only existing columns
             display_columns = [col for col in display_columns if col in df.columns]
             display_df = df[display_columns].copy()
+            
+            # Create sorting buttons for each column
+            st.markdown("### Ordenar por:")
+            sort_cols = st.columns(len(display_columns))
+            
+            for idx, (col, mapped_name) in enumerate(zip(display_columns, [column_mapping[col] for col in display_columns])):
+                with sort_cols[idx]:
+                    # Add sort button with arrow indicator
+                    current_sort = st.session_state[sort_key]
+                    is_sorted = current_sort['column'] == col
+                    arrow = "↑" if is_sorted and current_sort['direction'] else "↓" if is_sorted else ""
+                    if st.button(f"{mapped_name} {arrow}", key=f"sort_{title}_{col}"):
+                        if current_sort['column'] == col:
+                            # Toggle direction if same column
+                            current_sort['direction'] = not current_sort['direction']
+                        else:
+                            # New column, set to ascending
+                            current_sort['column'] = col
+                            current_sort['direction'] = True
+            
+            # Apply sorting if selected
+            if st.session_state[sort_key]['column']:
+                col = st.session_state[sort_key]['column']
+                ascending = st.session_state[sort_key]['direction']
+                display_df = display_df.sort_values(by=col, ascending=ascending)
+
+            # Rename columns for display
             display_df.columns = [column_mapping[col] for col in display_columns]
 
             # Format the data
@@ -225,6 +256,7 @@ class TableComponent:
                         color: white;
                         padding: 12px;
                         text-align: left;
+                        cursor: pointer;
                     }
                     .dataframe td {
                         padding: 8px;
@@ -235,6 +267,14 @@ class TableComponent:
                     }
                     .dataframe tr:hover {
                         background-color: #ddd;
+                    }
+                    .stButton button {
+                        width: 100%;
+                        padding: 5px;
+                        font-size: 0.8em;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
                     }
                 </style>
             """, unsafe_allow_html=True)
