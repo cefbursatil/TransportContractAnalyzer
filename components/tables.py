@@ -20,7 +20,7 @@ class TableComponent:
             sort_key = f"{title.lower()}_sort"
             if sort_key not in st.session_state:
                 st.session_state[sort_key] = {
-                    'column': None,
+                    'column': 'fecha_de_recepcion_de' if title == "Contratos Activos" else None,
                     'direction': True  # True for ascending
                 }
 
@@ -104,7 +104,7 @@ class TableComponent:
                             (pd.to_datetime(df['fecha_de_firma']).dt.date <= end_date)
                         ]
             else:
-                # Default filters for other tabs
+                # Default filters for active contracts tab
                 col1, col2, col3 = st.columns(3)
                 
                 # Department filter
@@ -133,9 +133,9 @@ class TableComponent:
 
                 # Value range filter
                 with col3:
-                    if 'valor_del_contrato' in df.columns:
-                        min_val = float(df['valor_del_contrato'].min())
-                        max_val = float(df['valor_del_contrato'].max())
+                    if 'precio_base' in df.columns:
+                        min_val = float(df['precio_base'].min())
+                        max_val = float(df['precio_base'].max())
                         selected_range = st.slider(
                             'Rango de Valor (COP)',
                             min_value=min_val,
@@ -145,8 +145,8 @@ class TableComponent:
                             key=f"{title.lower()}_valor_filter"
                         )
                         df = df[
-                            (df['valor_del_contrato'] >= selected_range[0]) &
-                            (df['valor_del_contrato'] <= selected_range[1])
+                            (df['precio_base'] >= selected_range[0]) &
+                            (df['precio_base'] <= selected_range[1])
                         ]
 
             # Select relevant columns with better names
@@ -154,6 +154,9 @@ class TableComponent:
                 'nombre_entidad': 'Entidad',
                 'departamento': 'Departamento',
                 'tipo_de_contrato': 'Tipo de Contrato',
+                'precio_base': 'Valor (COP)',
+                'fecha_de_recepcion_de': 'Fecha Presentación Oferta',
+                'descripci_on_del_procedimiento': 'Descripción',
                 'valor_del_contrato': 'Valor (COP)',
                 'fecha_de_firma': 'Fecha de Firma',
                 'descripcion_del_proceso': 'Descripción',
@@ -175,8 +178,8 @@ class TableComponent:
             else:
                 display_columns = [
                     'nombre_entidad', 'departamento', 'tipo_de_contrato',
-                    'valor_del_contrato', 'fecha_de_firma', 'descripcion_del_proceso',
-                    'estado_contrato', 'duracion'
+                    'precio_base', 'fecha_de_recepcion_de', 'descripci_on_del_procedimiento',
+                    'estado_contrato'
                 ]
             
             # Filter only existing columns
@@ -218,6 +221,9 @@ class TableComponent:
             if 'Fecha de Firma' in display_df.columns:
                 display_df['Fecha de Firma'] = pd.to_datetime(display_df['Fecha de Firma']).dt.strftime('%Y-%m-%d')
 
+            if 'Fecha Presentación Oferta' in display_df.columns:
+                display_df['Fecha Presentación Oferta'] = pd.to_datetime(display_df['Fecha Presentación Oferta']).dt.strftime('%Y-%m-%d')
+
             # Format días adicionados as integer
             if 'Días Adicionados' in display_df.columns:
                 display_df['Días Adicionados'] = display_df['Días Adicionados'].fillna(0).astype(int)
@@ -241,7 +247,7 @@ class TableComponent:
             # Display table statistics
             st.markdown(f"**Total de Contratos:** {len(display_df)}")
             if 'Valor (COP)' in display_df.columns:
-                total_value = df['valor_del_contrato'].sum()
+                total_value = df['precio_base' if title == "Contratos Activos" else 'valor_del_contrato'].sum()
                 st.markdown(f"**Valor Total:** {format_currency(total_value)}")
 
             # Custom CSS for table styling
