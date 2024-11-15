@@ -35,42 +35,88 @@ class ChatComponent:
                 pd.to_datetime(active_df['fecha_de_recepcion_de']).dt.date >= today
             ] if 'fecha_de_recepcion_de' in active_df.columns else pd.DataFrame()
 
-            # Historical analytics
-            hist_analytics = {
-                'total_contracts': len(historical_df),
-                'avg_value': historical_df['valor_del_contrato'].mean() if 'valor_del_contrato' in historical_df.columns else 0,
-                'total_value': historical_df['valor_del_contrato'].sum() if 'valor_del_contrato' in historical_df.columns else 0
-            }
+            context_parts = []
 
-            # Contract type distribution
-            type_dist = historical_df['tipo_de_contrato'].value_counts().to_dict() if 'tipo_de_contrato' in historical_df.columns else {}
-
-            # Monthly trend analysis
-            if 'fecha_de_firma' in historical_df.columns:
-                historical_df['month'] = pd.to_datetime(historical_df['fecha_de_firma']).dt.to_period('M')
-                monthly_values = historical_df.groupby('month')['valor_del_contrato'].mean().tail(12)
-                trend = "creciente" if monthly_values.iloc[-1] > monthly_values.iloc[0] else "decreciente"
-            else:
-                trend = "no disponible"
-
-            context = f"""
-            Contexto del Sistema de Contratos:
-
+            # Active Contracts Section
+            active_section = f"""
             Contratos Activos con Fecha de Presentación Futura:
             - Total de contratos: {len(future_contracts)}
             - Tipos de contratos principales: {', '.join(future_contracts['tipo_de_contrato'].value_counts().nlargest(3).index.tolist()) if not future_contracts.empty else 'N/A'}
-            
-            Análisis Histórico:
-            - Total de contratos históricos: {hist_analytics['total_contracts']:,}
-            - Valor promedio de contratos: ${hist_analytics['avg_value']:,.2f}
-            - Valor total histórico: ${hist_analytics['total_value']:,.2f}
-            
-            Distribución por Tipo de Contrato:
-            {chr(10).join([f'- {k}: {v} contratos' for k, v in type_dist.items()][:5])}
-            
-            Tendencia de Valores:
-            - La tendencia de valores en los últimos 12 meses es {trend}
             """
+            context_parts.append(active_section)
+
+            # Historical Analytics Section
+            if not historical_df.empty:
+                hist_analytics = {
+                    'total_contracts': len(historical_df),
+                    'avg_value': historical_df['valor_del_contrato'].mean() if 'valor_del_contrato' in historical_df.columns else 0,
+                    'total_value': historical_df['valor_del_contrato'].sum() if 'valor_del_contrato' in historical_df.columns else 0
+                }
+
+                hist_section = f"""
+                Análisis Histórico General:
+                - Total de contratos históricos: {hist_analytics['total_contracts']:,}
+                - Valor promedio de contratos: ${hist_analytics['avg_value']:,.2f}
+                - Valor total histórico: ${hist_analytics['total_value']:,.2f}
+                """
+                context_parts.append(hist_section)
+
+                # Top 10 Suppliers
+                if 'proveedor_adjudicado' in historical_df.columns and 'valor_del_contrato' in historical_df.columns:
+                    top_suppliers = historical_df.groupby('proveedor_adjudicado')['valor_del_contrato'].sum().nlargest(10)
+                    suppliers_section = """
+                    Top 10 Proveedores por Valor Total de Contratos:
+                    """ + "\n".join([f"- {name}: ${value:,.2f}" for name, value in top_suppliers.items()])
+                    context_parts.append(suppliers_section)
+
+                # Top 10 Entities
+                if 'nombre_entidad' in historical_df.columns and 'valor_del_contrato' in historical_df.columns:
+                    top_entities = historical_df.groupby('nombre_entidad')['valor_del_contrato'].sum().nlargest(10)
+                    entities_section = """
+                    Top 10 Entidades por Valor Total de Contratos:
+                    """ + "\n".join([f"- {name}: ${value:,.2f}" for name, value in top_entities.items()])
+                    context_parts.append(entities_section)
+
+                # Monthly Contract Frequency
+                if 'fecha_de_firma' in historical_df.columns and 'id_contrato' in historical_df.columns:
+                    monthly_contracts = historical_df.groupby(
+                        pd.to_datetime(historical_df['fecha_de_firma']).dt.strftime('%Y-%m')
+                    )['id_contrato'].count()
+                    peak_months = monthly_contracts.nlargest(5)
+                    
+                    frequency_section = """
+                    Frecuencia de Contratos por Mes (Top 5 meses con más contratos):
+                    """ + "\n".join([f"- {month}: {count} contratos" for month, count in peak_months.items()])
+                    context_parts.append(frequency_section)
+
+                # Regional Distribution
+                if 'departamento' in historical_df.columns and 'valor_del_contrato' in historical_df.columns:
+                    region_distribution = historical_df.groupby('departamento')['valor_del_contrato'].sum().nlargest(5)
+                    region_section = """
+                    Distribución Regional de Contratos (Top 5 departamentos):
+                    """ + "\n".join([f"- {dept}: ${value:,.2f}" for dept, value in region_distribution.items()])
+                    context_parts.append(region_section)
+
+                # Contract Value Trends
+                if 'fecha_de_firma' in historical_df.columns and 'valor_del_contrato' in historical_df.columns:
+                    historical_df['year_month'] = pd.to_datetime(historical_df['fecha_de_firma']).dt.to_period('M')
+                    monthly_values = historical_df.groupby('year_month')['valor_del_contrato'].mean()
+                    
+                    recent_trend = "creciente" if monthly_values.iloc[-1] > monthly_values.iloc[-2] else "decreciente"
+                    avg_recent = monthly_values.tail(3).mean()
+                    avg_previous = monthly_values.tail(6).head(3).mean()
+                    trend_strength = "fuerte" if abs(avg_recent - avg_previous)/avg_previous > 0.1 else "moderada"
+                    
+                    trend_section = f"""
+                    Tendencias de Valor de Contratos:
+                    - Tendencia reciente: {recent_trend} ({trend_strength})
+                    - Valor promedio últimos 3 meses: ${avg_recent:,.2f}
+                    - Variación respecto a meses anteriores: {((avg_recent/avg_previous - 1) * 100):,.1f}%
+                    """
+                    context_parts.append(trend_section)
+
+            # Join all sections with proper spacing
+            context = "\n\n".join(context_parts)
             
             return context
         except Exception as e:
@@ -98,10 +144,11 @@ class ChatComponent:
                         {context}
 
                         Por favor, ten en cuenta este contexto para responder preguntas sobre:
-                        - Análisis de tendencias y patrones
-                        - Comparaciones con datos históricos
-                        - Recomendaciones basadas en la experiencia histórica
-                        - Identificación de oportunidades y riesgos
+                        - Análisis de tendencias y patrones en valores y frecuencias de contratos
+                        - Comparaciones con datos históricos por región y proveedor
+                        - Recomendaciones basadas en el comportamiento histórico de proveedores y entidades
+                        - Identificación de oportunidades y riesgos basados en tendencias
+                        - Análisis de distribución regional y temporal de contratos
                         """
                         st.session_state.chat_component.chat.send_message(initial_prompt)
                     
@@ -119,7 +166,7 @@ class ChatComponent:
 
             # Chat interface
             user_input = st.text_input("Escribe tu pregunta sobre los contratos:", 
-                                     placeholder="Ejemplo: ¿Cuál es la tendencia de valores en los últimos contratos?")
+                                     placeholder="Ejemplo: ¿Cuáles son los principales proveedores y su distribución de contratos?")
             
             if user_input:
                 with st.spinner("Procesando tu pregunta..."):
