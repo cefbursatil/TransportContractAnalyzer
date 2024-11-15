@@ -6,6 +6,7 @@ from components.tables import TableComponent
 from components.analytics import AnalyticsComponent
 from components.config import ConfigComponent
 from components.auth import AuthComponent
+from components.chat import ChatComponent
 import logging
 import sys
 from styles import apply_custom_styles
@@ -48,10 +49,8 @@ class ContractManagementSystem:
             # Apply custom styles
             apply_custom_styles()
 
-            from PIL import Image
-            logo = Image.open('static/images/Frix Data Logo.jpg'
-                              )  # adjust filename as needed
-            st.image(logo, width=400)
+            # Display title
+            st.title("Sistema de Gestión de Contratos de Transporte")
 
             # Authentication check
             if not st.session_state.get('authentication_status'):
@@ -86,8 +85,7 @@ class ContractManagementSystem:
                 # Show loading indicator
                 if st.session_state.show_loading:
                     with st.spinner("Cargando datos..."):
-                        active_df, historical_df = self.data_processor.load_data(
-                        )
+                        active_df, historical_df = self.data_processor.load_data()
                 else:
                     active_df, historical_df = self.data_processor.load_data()
 
@@ -122,9 +120,9 @@ class ContractManagementSystem:
                               help="Duración promedio de contratos")
 
                 # Create tabs
-                tab1, tab2, tab3, tab4 = st.tabs([
+                tab1, tab2, tab3, tab4, tab5 = st.tabs([
                     "Contratos Activos", "Contratos Históricos",
-                    "Dashboard de Análisis", "Configuración"
+                    "Dashboard de Análisis", "Análisis con IA", "Configuración"
                 ])
 
                 with tab1:
@@ -135,10 +133,12 @@ class ContractManagementSystem:
                                                 "Contratos Históricos")
 
                 with tab3:
-                    AnalyticsComponent.render_analytics(
-                        active_df, historical_df)
+                    AnalyticsComponent.render_analytics(active_df, historical_df)
 
                 with tab4:
+                    ChatComponent.render_chat(active_df)
+
+                with tab5:
                     ConfigComponent.render_config()
 
             except Exception as e:

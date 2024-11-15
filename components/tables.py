@@ -323,30 +323,15 @@ class TableComponent:
             st.subheader("Exportar Datos")
             col1, col2 = st.columns(2)
 
-            with col1:
-                if st.button("Exportar a CSV",
-                             key=f"{title.lower()}_csv_button"):
-                    csv = df.to_csv(index=False)
-                    st.download_button(
-                        label="Descargar CSV",
-                        data=csv,
-                        file_name=
-                        f"{title.lower().replace(' ', '_')}_{pd.Timestamp.now().strftime('%Y%m%d')}.csv",
-                        mime="text/csv",
-                        key=f"{title.lower()}_csv_download")
-
-            with col2:
-                if st.button("Exportar a Excel",
-                             key=f"{title.lower()}_excel_button"):
-                    output = df.to_excel(index=False)
-                    st.download_button(
-                        label="Descargar Excel",
-                        data=output,
-                        file_name=
-                        f"{title.lower().replace(' ', '_')}_{pd.Timestamp.now().strftime('%Y%m%d')}.xlsx",
-                        mime=
-                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        key=f"{title.lower()}_excel_download")
+            if st.button("Exportar a CSV", key=f"{title.lower()}_csv_button"):
+                csv = df.to_csv(index=False)
+                st.download_button(
+                    label="Descargar CSV",
+                    data=csv,
+                    file_name=
+                    f"{title.lower().replace(' ', '_')}_{pd.Timestamp.now().strftime('%Y%m%d')}.csv",
+                    mime="text/csv",
+                    key=f"{title.lower()}_csv_download")
 
         except Exception as e:
             logger.error(f"Error rendering table: {str(e)}")
