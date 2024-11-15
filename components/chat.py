@@ -134,33 +134,21 @@ class ChatComponent:
             if 'chat_component' not in st.session_state:
                 try:
                     st.session_state.chat_component = ChatComponent()
-                    
-                    # Initialize chat with context
-                    if active_df is not None and historical_df is not None:
-                        context = st.session_state.chat_component.get_context_data(active_df, historical_df)
-                        initial_prompt = f"""
-                        Por favor, analiza el siguiente contexto del sistema de contratos y ayúdame a responder preguntas sobre los contratos:
-
-                        {context}
-
-                        Por favor, ten en cuenta este contexto para responder preguntas sobre:
-                        - Análisis de tendencias y patrones en valores y frecuencias de contratos
-                        - Comparaciones con datos históricos por región y proveedor
-                        - Recomendaciones basadas en el comportamiento histórico de proveedores y entidades
-                        - Identificación de oportunidades y riesgos basados en tendencias
-                        - Análisis de distribución regional y temporal de contratos
-                        """
-                        st.session_state.chat_component.chat.send_message(initial_prompt)
-                    
                     st.success("Conexión establecida con Gemini AI")
                 except Exception as e:
                     st.error(f"Error al conectar con Gemini AI: {str(e)}")
                     return
-            
+
+            # Initialize context in session state if not present
+            if 'chat_context' not in st.session_state and active_df is not None and historical_df is not None:
+                st.session_state.chat_context = st.session_state.chat_component.get_context_data(active_df, historical_df)
+                st.session_state.context_sent = False
+
             # Add clear chat history button
             if st.button("Limpiar Historial de Chat"):
                 if hasattr(st.session_state.chat_component, 'chat'):
                     st.session_state.chat_component.chat = st.session_state.chat_component.model.start_chat(history=[])
+                    st.session_state.context_sent = False
                     st.success("Historial de chat limpiado")
                     st.rerun()
 
@@ -170,7 +158,28 @@ class ChatComponent:
             
             if user_input:
                 with st.spinner("Procesando tu pregunta..."):
-                    response = st.session_state.chat_component.chat.send_message(user_input)
+                    # For the first message, prepend the context
+                    if not st.session_state.get('context_sent', False):
+                        context_prompt = f"""
+                        Por favor, analiza el siguiente contexto del sistema de contratos y ayúdame a responder preguntas sobre los contratos:
+
+                        {st.session_state.chat_context}
+
+                        Por favor, ten en cuenta este contexto para responder preguntas sobre:
+                        - Análisis de tendencias y patrones en valores y frecuencias de contratos
+                        - Comparaciones con datos históricos por región y proveedor
+                        - Recomendaciones basadas en el comportamiento histórico de proveedores y entidades
+                        - Identificación de oportunidades y riesgos basados en tendencias
+                        - Análisis de distribución regional y temporal de contratos
+
+                        Primera pregunta del usuario: {user_input}
+                        """
+                        response = st.session_state.chat_component.chat.send_message(context_prompt)
+                        st.session_state.context_sent = True
+                    else:
+                        # For subsequent messages, just send the user input
+                        response = st.session_state.chat_component.chat.send_message(user_input)
+                    
                     st.markdown("### Respuesta:")
                     st.markdown(response.text)
             
