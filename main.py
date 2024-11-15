@@ -19,13 +19,21 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Page config
-st.set_page_config(page_title="Sistema de Gestión de Contratos de Transporte",
-                   page_icon="🚦",
-                   layout="wide")
+st.set_page_config(
+    page_title="Sistema de Gestión de Contratos de Transporte",
+    page_icon="🚦",
+    layout="wide"
+)
 
+def load_logo():
+    """Load and display the logo"""
+    try:
+        st.image("static/images/Frix Data Logo.jpg", width=200)
+    except Exception as e:
+        logger.error(f"Error loading logo: {str(e)}")
+        st.error("Error loading logo")
 
 class ContractManagementSystem:
-
     def __init__(self):
         try:
             logger.info("Initializing Contract Management System")
@@ -48,6 +56,9 @@ class ContractManagementSystem:
             logger.info("Starting application")
             # Apply custom styles
             apply_custom_styles()
+
+            # Load logo
+            load_logo()
 
             # Display title
             st.title("Sistema de Gestión de Contratos de Transporte")
@@ -130,20 +141,20 @@ class ContractManagementSystem:
 
                 with tab2:
                     TableComponent.render_table(historical_df,
-                                                "Contratos Históricos")
+                                               "Contratos Históricos")
 
                 with tab3:
                     AnalyticsComponent.render_analytics(active_df, historical_df)
 
                 with tab4:
-                    ChatComponent.render_chat(active_df)
+                    ChatComponent.render_chat(active_df, historical_df)
 
                 with tab5:
                     ConfigComponent.render_config()
 
             except Exception as e:
                 logger.error(f"Error in main application flow: {str(e)}",
-                             exc_info=True)
+                            exc_info=True)
                 st.error(
                     "Error en la aplicación. Por favor, contacte al administrador."
                 )

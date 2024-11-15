@@ -2,8 +2,10 @@ import streamlit as st
 import google.generativeai as genai
 import os
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 import pandas as pd
+from datetime import datetime
+from utils.data_processor import DataProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -23,12 +25,51 @@ class ChatComponent:
             logger.error(f"Error initializing ChatComponent: {str(e)}")
             raise
 
-    def analyze_contract(self, contract_data: Dict[str, Any]) -> str:
-        """Analyze a single contract using Gemini AI"""
+    def get_historical_analytics(self, historical_df: pd.DataFrame, contract_data: Dict[str, Any]) -> str:
+        """Get historical analytics context for similar contracts"""
+        try:
+            # Filter historical contracts of the same type
+            similar_contracts = historical_df[
+                historical_df['tipo_de_contrato'] == contract_data.get('tipo_de_contrato', '')
+            ]
+
+            if similar_contracts.empty:
+                return "No hay datos históricos disponibles para contratos similares."
+
+            # Calculate statistics
+            avg_value = similar_contracts['valor_del_contrato'].mean()
+            median_value = similar_contracts['valor_del_contrato'].median()
+            total_contracts = len(similar_contracts)
+            
+            # Get department statistics if available
+            dept_stats = ""
+            if 'departamento' in similar_contracts.columns:
+                dept_contracts = similar_contracts[
+                    similar_contracts['departamento'] == contract_data.get('departamento', '')
+                ]
+                if not dept_contracts.empty:
+                    dept_avg = dept_contracts['valor_del_contrato'].mean()
+                    dept_stats = f"\n- Valor promedio en {contract_data.get('departamento', 'el departamento')}: ${dept_avg:,.2f}"
+
+            return f"""
+            Contexto Histórico:
+            - Total de contratos similares: {total_contracts}
+            - Valor promedio: ${avg_value:,.2f}
+            - Valor mediana: ${median_value:,.2f}{dept_stats}
+            """
+        except Exception as e:
+            logger.error(f"Error getting historical analytics: {str(e)}")
+            return "Error al obtener análisis histórico."
+
+    def analyze_contract(self, contract_data: Dict[str, Any], historical_df: pd.DataFrame) -> str:
+        """Analyze a single contract using Gemini AI with historical context"""
         try:
             # Format monetary values for better readability
             valor = contract_data.get('valor_del_contrato', 0)
             valor_formatted = f"${valor:,.2f}" if isinstance(valor, (int, float)) else str(valor)
+
+            # Get historical analytics
+            historical_context = self.get_historical_analytics(historical_df, contract_data)
 
             prompt = f"""
             Por favor, analiza el siguiente contrato de transporte y proporciona un análisis detallado:
@@ -41,14 +82,18 @@ class ChatComponent:
             - Departamento: {contract_data.get('departamento', 'N/A')}
             - Estado: {contract_data.get('estado_contrato', 'N/A')}
             
+            {historical_context}
+            
             Por favor proporciona:
             1. Resumen Ejecutivo:
                - Breve descripción del contrato
                - Objetivo principal
                - Alcance del proyecto
+               - Comparación con datos históricos
             
             2. Análisis Financiero:
                - Evaluación del valor del contrato
+               - Comparación con promedios históricos
                - Recomendaciones sobre el aspecto financiero
             
             3. Análisis de Riesgos:
@@ -60,6 +105,7 @@ class ChatComponent:
                - Sugerencias para el monitoreo
                - Aspectos clave a supervisar
                - Mejores prácticas aplicables
+               - Consideraciones basadas en datos históricos
             """
             
             response = self.chat.send_message(prompt)
@@ -69,7 +115,8 @@ class ChatComponent:
             return f"Error al analizar el contrato: {str(e)}"
 
     @staticmethod
-    def render_chat(df: Optional[pd.DataFrame] = None) -> None:
+    def render_chat(active_df: Optional[pd.DataFrame] = None, 
+                   historical_df: Optional[pd.DataFrame] = None) -> None:
         """Render the chat interface"""
         try:
             st.header("Análisis de Contratos con IA")
@@ -91,16 +138,27 @@ class ChatComponent:
                     st.rerun()
             
             # Contract selection
-            if df is not None and not isinstance(df, pd.DataFrame):
+            if active_df is not None and not isinstance(active_df, pd.DataFrame):
                 logger.error("Invalid input: DataFrame expected")
                 st.error("Error: Invalid data format")
                 return
             
-            if df is not None and not df.empty:
+            if active_df is not None and not active_df.empty:
+                # Filter active contracts by date
+                today = pd.Timestamp.now().date()
+                if 'fecha_de_recepcion_de' in active_df.columns:
+                    active_df = active_df[
+                        pd.to_datetime(active_df['fecha_de_recepcion_de']).dt.date >= today
+                    ]
+
+                if active_df.empty:
+                    st.warning("No hay contratos activos con fecha de recepción futura.")
+                    return
+
                 # Filter for contract selection
                 col1, col2 = st.columns(2)
                 
-                filtered_df = df.copy()
+                filtered_df = active_df.copy()
                 
                 with col1:
                     if 'nombre_entidad' in filtered_df.columns:
@@ -151,7 +209,10 @@ class ChatComponent:
                             # Analyze button
                             if st.button("Analizar Contrato", key="analyze_button"):
                                 with st.spinner("Analizando contrato con IA..."):
-                                    analysis = st.session_state.chat_component.analyze_contract(contract_data)
+                                    analysis = st.session_state.chat_component.analyze_contract(
+                                        contract_data,
+                                        historical_df if historical_df is not None else pd.DataFrame()
+                                    )
                                     st.markdown("### Análisis del Contrato")
                                     st.markdown(analysis)
                 
