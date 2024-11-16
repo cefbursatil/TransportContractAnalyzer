@@ -10,11 +10,18 @@ def format_url_column(url_text):
     if pd.isna(url_text):
         return ""
     try:
+        # If the URL is already a string, just return it directly
+        if isinstance(url_text, str) and url_text.startswith('http'):
+            return url_text.strip()  # Return clean URL
+        # Try to parse if it's a dictionary string
         import ast
         url_dict = ast.literal_eval(url_text)
         actual_url = url_dict.get('url', '')
-        return f"[URL]({actual_url})"  # Streamlit markdown link format
+        return actual_url.strip() if actual_url else ""  # Return clean URL
     except:
+        # If parsing fails, return original text if it looks like a URL
+        if isinstance(url_text, str) and url_text.startswith('http'):
+            return url_text.strip()  # Return clean URL
         return ""
 
 
@@ -309,13 +316,15 @@ class TableComponent:
             # Display the table with HTML
             # Then, in your table rendering code, process the column
             if 'URL' in display_df.columns:
-                st.dataframe(
-                    display_df,
-                    use_container_width=True,
-                    column_config={
-                        "URL": st.column_config.LinkColumn(
-                            "URL")  # Configure as link column
-                    })
+                st.dataframe(display_df,
+                             use_container_width=True,
+                             column_config={
+                                 "URL":
+                                 st.column_config.LinkColumn(
+                                     "Ver Proceso",
+                                     display_text="Ver en SECOP",
+                                     validate="url")
+                             })
             else:
                 st.dataframe(display_df, use_container_width=True)
 
